@@ -1,0 +1,142 @@
+{
+    "name": "vscode-socket-security",
+    "displayName": "Socket Security",
+    "description": "Editor integration with Socket Security",
+    "version": "1.0.0",
+    "private": true,
+    "preview": false,
+    "categories": [
+        "Linters",
+        "Programming Languages"
+    ],
+    "tags": [
+        "Code Analysis",
+        "Code Quality",
+        "JavaScript",
+        "Security",
+        "Static Code Analysis",
+        "TypeScript"
+    ],
+    "keywords": [
+        "Code Analysis",
+        "Code Quality",
+        "JavaScript",
+        "Security",
+        "Static Code Analysis",
+        "TypeScript"
+    ],
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.63.0"
+    },
+    "icon": "socket-square.png",
+    "activationEvents": [
+        "workspaceContains:**/package.json",
+        "workspaceContains:**/socket.yml",
+        "onLanguage:javascript"
+    ],
+    "type": "commonjs",
+    "main": "./out/main.js",
+    "homepage": "https://socket.dev",
+    "contributes": {
+        "commands": [{
+            "command": "socket-security.runReport",
+            "category": "Socket Security",
+            "title": "Run Report",
+            "enablement": "workspaceFolderCount >= 1"
+        }],
+        "configuration": {
+            "title": "Socket Security",
+            "properties": {
+                "socket-security.showAllIssueTypes": {
+                    "order": 0,
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Show all issue types, even issues hidden by default."
+                },
+                "socket-security.minIssueLevel": {
+                    "order": 1,
+                    "type": "string",
+                    "default": "low",
+                    "enum": [
+                        "critical",
+                        "high",
+                        "middle",
+                        "low"
+                    ],
+                    "description": "Hide all issues that are less important than this level, note some issues are hidden by default so you may also wish to enable showing all issue types still."
+                },
+                "socket-security.errorOverlayThreshold": {
+                    "order": 2,
+                    "type": "number",
+                    "default": 50,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Show error overlay for any import of a package with a summary score less than this value.",
+                    "examples": [
+                        50
+                    ]
+                },
+                "socket-security.warnOverlayThreshold": {
+                    "order": 3,
+                    "type": "number",
+                    "default": 80,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Show error overlay for any import of a package with a summary score less than this value.",
+                    "examples": [
+                        80
+                    ]
+                },
+                "socket-security.reportsEnabled": {
+                    "order": 4,
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Create reports from package manifest files (package.json / package-lock.json) that require sending data remotely. Disabling this will disable all issues but keep scores listed."
+                }
+            }
+        }
+    },
+    "bugs": {
+        "email": "support@socket.dev"
+    },
+    "publisher": "SocketSecurity",
+    "scripts": {
+        "vscode:prepublish": "npm run esbuild -- --minify",
+        "esbuild-base": "esbuild --bundle --external:vscode --outdir=out/ --platform=node --sourcemap",
+        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
+        "test-compile": "tsc -p ./",
+        "lint": "eslint \"src/**/*.ts\"",
+        "compile": "npm run esbuild",
+        "package-for-vscode": "vsce package --dependencies",
+        "update-vendored": "npm --prefix=./vendor -g i '@socketsecurity/cli'"
+    },
+    "dependencies": {
+        "@babel/parser": "^7.20.7",
+        "@socketsecurity/cli": "^0.3.0",
+        "@socketsecurity/config": "^2.0.0",
+        "acorn-walk": "^8.2.0",
+        "ast-types": "^0.14.2",
+        "ini": "^3.0.1",
+        "json-to-ast": "^2.1.0",
+        "octokit": "^2.0.10",
+        "safe-stable-stringify": "^2.4.1",
+        "semver": "^7.3.8",
+        "yaml": "^2.1.3"
+    },
+    "devDependencies": {
+        "@types/ini": "^1.3.31",
+        "@types/json-to-ast": "^2.1.2",
+        "@types/node": "^16.11.7",
+        "@types/vscode": "^1.26.0",
+        "@typescript-eslint/eslint-plugin": "^5.42.0",
+        "@typescript-eslint/parser": "^5.42.0",
+        "esbuild": "^0.16.7",
+        "eslint": "^8.26.0",
+        "typescript": "^4.8.4",
+        "vsce": "^2.15.0"
+    },
+    "repository": {
+        "url": "https://github.com/SocketDev/vscode-socket-security"
+    }
+}

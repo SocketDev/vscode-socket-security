@@ -1,0 +1,47 @@
+on:
+  push:
+    tags:
+      - "release/[0-9]+.[0-9]+.[0-9]+"
+      - "prerelease/[0-9]+.[0-9]+.[0-9]+"
+
+name: Deploy Extension
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for DryRun and Prerelease
+        id: releaseMode
+        # perform secret check & put boolean result as an output
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" = "refs/tags/prerelease"* ]]; then
+            echo "preRelease=true" >> $GITHUB_OUTPUT;
+          else
+            echo "preRelease=false" >> $GITHUB_OUTPUT;
+          fi
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      - name: Publish to Open VSX Registry
+        uses: HaaLeo/publish-vscode-extension@v1
+        id: publishToOpenVSX
+        with:
+          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
+      - name: Publish to Visual Studio Marketplace
+        uses: HaaLeo/publish-vscode-extension@v1
+        with:
+          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
+          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+          pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
+          registryUrl: https://marketplace.visualstudio.com
+      - name: Github Release
+        uses: softprops/action-gh-release@v1
+        # if: ${{ ! steps.releaseMode.outputs.dryRun }}
+        with:
+          body: |
+            This release is also available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=SocketSecurity.vscode-socket-security) and [OpenVSX Registry](https://open-vsx.org/extension/SocketSecurity/vscode-socket-security).
+          files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+          prerelease: ${{ steps.releaseMode.outputs.preRelease }}

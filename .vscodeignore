@@ -1,0 +1,7 @@
+.vscode
+.DS_Store
+*.vsix
+node_modules
+*.js.map
+src/
+tsconfig.json
