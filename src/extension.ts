@@ -1,75 +1,91 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+
 import * as vscode from 'vscode';
-import { ExtensionContext, languages, commands, Disposable, workspace, window } from 'vscode';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { text } from 'node:stream/consumers';
-import { setTimeout } from 'node:timers/promises'
-import * as https from 'node:https';
-import { IncomingMessage } from 'node:http';
-import * as yaml from 'yaml'
+import { ExtensionContext, languages, workspace } from 'vscode';
 import jsonToAST from 'json-to-ast'
+import * as socketYaml from './data/socket-yaml'
+import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
+import * as report from './data/report'
+import { SocketReport } from './data/report';
+import { getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
+import * as editorConfig from './data/editor-config';
+import { installGithubApp } from './data/github';
+import * as javascriptFiles from './ui/javascript-file'
 
-let disposables: Disposable[] = [];
-export function activate(context: ExtensionContext) {
-    let rootUri = workspace.workspaceFolders?.[0].uri
-    if (!rootUri) return
-    const workspaceRootURI = rootUri
+export const EXTENSION_PREFIX = 'socket-security'
 
-
+export async function activate(context: ExtensionContext) {
+    context.subscriptions.push(
+        vscode.commands.registerCommand(`${EXTENSION_PREFIX}.installGitHubApp`,installGithubApp),
+        vscode.commands.registerCommand(`${EXTENSION_PREFIX}.ignoreIssueType`, async (from: vscode.Uri, type: string) => {
+            if (vscode.env.isTelemetryEnabled) {
+                // ignored on which dep
+                // how many times diagnostic has show prior
+                // version of pkg bumped after diagnostic seen?
+            }
+            socketConfig.update(from, [
+                ['issueRules', type], false
+            ])
+        }),
+    )
+    const config = editorConfig.activate(context);
+    const [socketConfig, reports] = await Promise.all([
+        socketYaml.activate(context),
+        report.activate(context)
+    ])
+    javascriptFiles.activate(context, reports, socketConfig)
     const diagnostics = vscode.languages.createDiagnosticCollection()
-    vscode.commands.registerCommand('socket-dev.ignoreIssueType', async (type: string) => {
-        const configUri = vscode.Uri.joinPath(workspaceRootURI, 'socket.yml');
-        const configSrc = Buffer.from(await workspace.fs.readFile(configUri)).toString()
-        const yamlDoc = yaml.parseDocument(configSrc, {
-            keepSourceTokens: true
+    const pkgWatcher = vscode.workspace.createFileSystemWatcher('package.json');
+
+    context.subscriptions.push(
+        diagnostics,
+        pkgWatcher,
+        pkgWatcher.onDidChange((f) => {
+            const workspaceFolderURI = getWorkspaceFolderURI(f)
+            if (!workspaceFolderURI) {
+                return;
+            }
+            populateDiagnostics(workspaceFolderURI)
+        }),
+        pkgWatcher.onDidCreate((f) => {
+            const workspaceFolderURI = getWorkspaceFolderURI(f)
+            if (!workspaceFolderURI) {
+                return;
+            }
+            populateDiagnostics(workspaceFolderURI)
+        }),
+        pkgWatcher.onDidDelete((f) => {
+            diagnostics.delete(f)
         })
-        let issuesNode = yamlDoc.get('issues')
-        if (!issuesNode || Array.isArray(issuesNode) || typeof issuesNode !== 'object') {
-            yamlDoc.set('issues', new yaml.YAMLMap())
+    );
+    if (workspace.workspaceFolders) {
+        for (const workFolder of workspace.workspaceFolders) {
+            populateDiagnostics(workFolder.uri)
         }
-        yamlDoc.setIn(['issues', type], false)
-        await workspace.fs.writeFile(configUri, Buffer.from(yamlDoc.toString()))
-        populateDiagnostics()
-    })
-
-    class ActionProvider implements vscode.CodeActionProvider {
-        provideCodeActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, token: vscode.CancellationToken): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
-            return context.diagnostics.filter(
-                diag => {
-                    if (diag.source !== 'Socket Security') return false
-                    return true
-                }
-            ).map(
-                diag => {
-                    const action = new vscode.CodeAction(`Ignore all ${diag.code} issues`, vscode.CodeActionKind.QuickFix)
-                    action.command = {
-                        command: 'socket-dev.ignoreIssueType',
-                        title: `Ignore all ${diag.code} issues`,
-                        arguments: [diag.code]
-                    }
-                    action.diagnostics = [diag]
-                    action.isPreferred = false
-                    return action
-                }
-            )
-        }
-        resolveCodeAction?(codeAction: vscode.CodeAction, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeAction> {
-            return 
-        }
-
     }
-    languages.registerCodeActionsProvider({
-        language: 'json',
-        pattern: '**/package.json'
-    }, new ActionProvider(), {
-        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
-    })
-
-    type SocketReport = {issues: Array<{type: string, value: {severity: string, description: string, locations: Array<{type: string, value: any}>} }> };
-    function showReport(report: SocketReport, pkg: jsonToAST.ValueNode) {
-        if (pkg.type !== 'Object') return;
+    context.subscriptions.push(
+        reports.onReport(null, async (evt) => {
+            populateDiagnostics(evt.uri)
+        }),
+        socketConfig.onConfig(null, async (evt) => {
+            populateDiagnostics(evt.uri)
+        }),
+        config.onDependentConfig([
+            `${EXTENSION_PREFIX}.showAllIssueTypes`,
+            `${EXTENSION_PREFIX}.minIssueLevel`
+        ], () => {
+            if (workspace.workspaceFolders) {
+                for (const folder of workspace.workspaceFolders) {
+                    populateDiagnostics(folder.uri)
+                }
+            }
+        })
+    )
+    function normalizeReportAndLocations(report: SocketReport, pkg: jsonToAST.ValueNode) {
+        if (pkg.type !== 'Object') {
+            return [];
+        }
         let depSources: Array<jsonToAST.ObjectNode> = [];
         for (const pkgField of pkg.children) {
             if ([
@@ -80,6 +96,9 @@ export function activate(context: ExtensionContext) {
                     depSources.push(pkgField.value)
                 }
             }
+        }
+        if (depSources.length === 0) {
+            return [];
         }
         function findSource(name: string): jsonToAST.PropertyNode | null {
             for (const source of depSources) {
@@ -138,167 +157,121 @@ export function activate(context: ExtensionContext) {
         }
         return issueLocations
     }
-
-    let pendingReport = false;
-    async function populateDiagnostics() {
-        if (!currentReport) return
-        let config: any = null
-        try {
-            config = yaml.parse(
-                Buffer.from(await workspace.fs.readFile(
-                    vscode.Uri.joinPath(workspaceRootURI, 'socket.yml')
-                )).toString()
-            )
-        } catch {
-
+    async function populateDiagnostics(workspaceFolderURI: vscode.Uri) {
+        const effectiveData = reports.effectiveReportForUri(workspaceFolderURI)
+        if (effectiveData.defaulted) {
+            return
         }
-        if (config?.enabled === false) {
+        const currentReport = effectiveData.data
+        if (!currentReport) return
+        const socketYamlConfig = socketConfig.effectiveConfigForUri(workspaceFolderURI).data
+        if (socketYamlConfig.enabled === false) {
             diagnostics.clear()
             return
         }
-        const report = currentReport
-        const textDocumentURI = vscode.Uri.joinPath(workspaceRootURI, 'package.json');
-        const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
-        const issuesToShow = showReport(report, jsonToAST(packageJSONSource, {
-            loc: true
-        }))
-        if (issuesToShow) {
-            const td = workspace.textDocuments.find(td => td.uri.toString() === textDocumentURI.toString())
-            if (!td) {
-                debugger
-                return
-            }
-            diagnostics.set(
-                textDocumentURI,
-                issuesToShow.flatMap((issue) => {
-                    const ignoreByType = config?.issues?.[issue.type] ?? true
-                    if (ignoreByType !== true) {
-                        return []
-                    }
-                    // let ignoreByEcosystem = config?.ignorePackageIssuesSimple
-                    // if (ignoreByEcosystem) {
-                    //     for (const [key, value] of Object.entries(ignoreByEcosystem)) {
-                    //         if (key) {
-
-                    //         }
-                    //     }
-                    // }
-                    const range = new vscode.Range(
-                        td.positionAt(issue.loc.start.offset),
-                        td.positionAt(issue.loc.end.offset)
-                    )
-                    const diag = new vscode.Diagnostic(
-                        range,
-                        issue.description, 
-                        issue.severity === 'low' ?
-                            vscode.DiagnosticSeverity.Information :
-                            vscode.DiagnosticSeverity.Warning
-                    )
-                    diag.source = 'Socket Security'
-                    diag.code = issue.type
-                    return [diag]
-                })
-            )
-
+        const pkgs = await workspace.findFiles('**/package{.json}', '**/node_modules/**')
+        const workspacePkgs = pkgs.filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
+        if (workspacePkgs.length === 0) {
+            return
         }
-    }
-    async function runReport() {
-        if (pendingReport) return;
-        pendingReport = true;
-        try {
-            const config = workspace.getConfiguration('socket-dev')
-            let apiKey = config.get('socketSecurityAPIKey')
-            if (typeof apiKey !== 'string' || !apiKey) {
-                apiKey = process.env.SOCKET_SECURITY_API_KEY
-            }
-            if (!apiKey) return
-            // window.showInformationMessage(`Saved ${textDocument.uri.fsPath}`);
-            if (!workspaceRootURI) return
-            const workspaceFSPath = workspaceRootURI.fsPath
-            const child = spawn('socket', ['report', 'create', '--json', workspaceFSPath], {
-                env: {
-                    ...process.env,
-                    SOCKET_SECURITY_API_KEY: `${apiKey}`
-                }
+        for (const textDocumentURI of workspacePkgs) {
+            const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
+
+            const pkgJsonAST = jsonToAST(packageJSONSource, {
+                loc: true
             });
-            const stdout = text(child.stdout);
-            const stderr = text(child.stderr);
-            const [exitCode] = await once(child, 'exit');
-            if (exitCode !== 0) {
-                window.showInformationMessage(`STDERR`, await stderr)
-                // Shhh, don't be noisy (invalid package.json / currently editing?)
-                return;
-            }
-            const { id } = JSON.parse(await stdout)
-            let attempts = 0
-            while (attempts++ < 10) {
-                await setTimeout(5000);
-                const req = https.get(`https://api.socket.dev/v0/report/view/${encodeURIComponent(id)}`, {
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(`${apiKey}:`).toString('base64url')}`
+            // TODO: report history
+            // const historyKey = `report.history.${textDocumentURI.fsPath}`;
+            // type ReportHistoryEntry = {
+            //     firstTimeShown: number,
+            //     firstDependentVersionShownAt: string
+            // }
+            // const reportHistory: Record<string, ReportHistoryEntry> = context.workspaceState.get(historyKey) ?? Object.create(null)
+            // const shownTime = Date.now()
+            // for (const issue of currentReport.issues) {
+            //     if (!reportHistory[issue.type]) {
+            //         reportHistory[issue.type] = {
+            //             firstTimeShown: shownTime,
+            //             firstDependentVersionShownAt: pkgJsonAST.type === 'Object' ? pkgJsonAST.children.
+            //         }
+            //     }
+            // }
+            // context.workspaceState.update(historyKey, reportHistory)
+            const relevantIssues = normalizeReportAndLocations(currentReport, pkgJsonAST)?.sort(sortIssues)
+            if (relevantIssues && relevantIssues.length) {
+                const diagnosticsToShow = (await Promise.all(relevantIssues.map(
+                    async (issue) => {
+                        const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
+                        if (!should) {
+                            return null
+                        }
+                        const td = Buffer.from(
+                            await workspace.fs.readFile(textDocumentURI)
+                        ).toString()
+                        let lineStartPattern = /^|(?:\r?\n)/g
+                        const lines = td.matchAll(lineStartPattern);
+                        let line = -1
+                        let lastLineOffset = 0
+                        let startPos
+                        let endPos
+                        for (const match of lines) {
+                            line++
+                            if (match.index == undefined) {
+                                continue
+                            }
+                            let startOfLineOffset = match.index + match[0].length
+                            if (!startPos && startOfLineOffset >= issue.loc.start.offset) {
+                                startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
+                            }
+                            if (!endPos && startOfLineOffset >= issue.loc.end.offset) {
+                                endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
+                            }
+                            lastLineOffset = startOfLineOffset
+                        }
+                        if (!startPos) {
+                            startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
+                        }
+                        if (!endPos) {
+                            endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
+                        }
+                        const range = new vscode.Range(startPos, endPos)
+                        const diag = new vscode.Diagnostic(
+                            range,
+                            issue.description, 
+                            issue.severity === 'low' ?
+                                vscode.DiagnosticSeverity.Information :
+                                issue.severity !== 'critical' ?
+                                    vscode.DiagnosticSeverity.Warning :
+                                    vscode.DiagnosticSeverity.Error
+                        )
+                        diag.source = DIAGNOSTIC_SOURCE_STR
+                        diag.code = issue.type
+                        return diag
                     }
-                });
-                req.end();
-                const [res] = (await once(req, 'response')) as [IncomingMessage]
-                if (res.statusCode === 200) {
-                    currentReport = JSON.parse(await text(res))
-                    context.workspaceState.update('currentReport', currentReport)
-                    context.workspaceState.update('reportMtime', Date.now())
-                    populateDiagnostics()
-                    break
-                }
+                ))).filter(x => !!x) as vscode.Diagnostic[]
+                diagnostics.set(textDocumentURI, diagnosticsToShow)
             }
-        } catch (e) {
-            if (e instanceof Error) {
-                window.showInformationMessage(e.message);
-            }
-        } finally {
-            pendingReport = false;
         }
     }
-    let currentReport: SocketReport | null = context.workspaceState.get('currentReport') ?? null
-    async function startup() {
-        // only run a report if we have stale report or are unclear on state
-        let needReport = !currentReport
-        if (!needReport) {
-            try {
-                const reportMtime = await context.workspaceState.get('reportMtime')
-                if (reportMtime) {
-                    const stat = await workspace.fs.stat(
-                        vscode.Uri.joinPath(workspaceRootURI, 'package.json')
-                    )
-                    if (stat.mtime > (reportMtime ?? 0 as number)) {
-                        needReport = true
-                    }
-                }
-            } catch {
-                needReport = true
-            }
-        }
-        if (needReport) {
-            runReport()
-        } else {
-            populateDiagnostics()
-        }
-    }
-    startup()
-    workspace.onDidSaveTextDocument((textDocument) => {
-        // only check if update was to package json related file
-        if (/([\\\/]|^)package(-lock)?.json$/.test(textDocument.fileName) === true) {
-            return runReport()
-        } else if (
-            vscode.Uri.joinPath(workspaceRootURI, 'socket.yml').toString() === textDocument.uri.toString()
-        ) {
-            // don't need a new report
-            populateDiagnostics()
-        }
-    })
+
+    context.subscriptions.push(
+        languages.registerCodeLensProvider({
+            language: 'json',
+            pattern: '**/package.json',
+            scheme: undefined
+        }, {
+            provideCodeLenses: pkgJSONProvideCodeLenses
+        }),
+        languages.registerCodeActionsProvider({
+            scheme: undefined,
+            language: 'json',
+            pattern: '**/package.json'
+        }, {
+            provideCodeActions: pkgJSONProvideCodeActions
+        }, {
+            providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+        })
+    )
 }
 
-// this method is called when your extension is deactivated
-export function deactivate() {
-	if (disposables) {
-		disposables.forEach(item => item.dispose());
-	}
-	disposables = [];
-}
+export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
