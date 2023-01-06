@@ -2,7 +2,7 @@
     "name": "vscode-socket-security",
     "displayName": "Socket Security",
     "description": "Editor integration with Socket Security",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "private": true,
     "license": "MIT",
     "engines": {
@@ -12,7 +12,7 @@
         "workspaceContains:**/package.json",
         "workspaceContains:**/socket.yml"
     ],
-    "main": "./out/extension.js",
+    "main": "./out/main.js",
     "contributes": {
         "configuration": {
             "properties": {
@@ -69,7 +69,7 @@
         "esbuild": "^0.16.7",
         "eslint": "^8.26.0",
         "typescript": "^4.8.4",
-        "vsce": "^2.16.0"
+        "vsce": "^2.15.0"
     },
     "repository": {
         "url": "https://github.com/SocketDev/vscode-socket-security"
