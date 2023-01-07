@@ -1,13 +1,12 @@
 import * as vscode from "vscode";
-import { spawn } from 'node:child_process';
+import child_process from 'node:child_process';
 import { once } from 'node:events';
 import type { IncomingMessage } from "node:http";
 import * as https from 'node:https';
 import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
-import { addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
+import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
 import * as stableStringify from 'safe-stable-stringify';
-import { EXTENSION_PREFIX } from "../extension";
 
 export type SocketReport = {
     issues: Array<{
@@ -123,18 +122,31 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             }
         }
         if (!needRun) return
-        const child = spawn('socket', ['report', 'create', '--json', workspaceFolderURI.fsPath], {
-            env: {
-                ...process.env,
-                SOCKET_SECURITY_API_KEY: `${apiKey}`
+        const child = child_process.spawn(
+            process.execPath,
+            [
+                context.asAbsolutePath('./vendor/bin/socket'),
+                'report', 'create', '--json', workspaceFolderURI.fsPath
+            ],
+            {
+                cwd: workspaceFolderURI.fsPath,
+                env: {
+                    ...process.env,
+                    SOCKET_SECURITY_API_KEY: `${apiKey}`
+                }
             }
-        });
+        )
         const stdout = text(child.stdout);
         const stderr = text(child.stdout);
-        const [exitCode] = await once(child, 'exit');
-        if (exitCode !== 0) {
-            console.error('socket CLI failed:', await stderr);
-            return;
+        try {
+            const [exitCode] = await once(child, 'exit');
+            if (exitCode !== 0) {
+                console.error('unable to get socket security report', await stderr);
+                return;
+            }
+        } catch (e) {
+            console.error(e);
+            throw e;
         }
         const { id } = JSON.parse(await stdout)
         const MAX_ATTEMPTS = 10

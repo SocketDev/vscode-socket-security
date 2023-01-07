@@ -8,12 +8,10 @@ import * as socketYaml from './data/socket-yaml'
 import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
 import * as report from './data/report'
 import { SocketReport } from './data/report';
-import { getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
+import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
 import * as javascriptFiles from './ui/javascript-file'
-
-export const EXTENSION_PREFIX = 'socket-security'
 
 export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
@@ -273,5 +271,3 @@ export async function activate(context: ExtensionContext) {
         })
     )
 }
-
-export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'

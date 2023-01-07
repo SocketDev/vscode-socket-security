@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import jsonToAST from 'json-to-ast'
-import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from '../extension';
+import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from '../util';
 
 export function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
     const packageJSONSource = document.getText()

@@ -2,17 +2,20 @@
     "name": "vscode-socket-security",
     "displayName": "Socket Security",
     "description": "Editor integration with Socket Security",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "private": true,
     "license": "MIT",
     "engines": {
         "vscode": "^1.26.0"
     },
+    "icon": "socket-square.png",
     "activationEvents": [
         "workspaceContains:**/package.json",
         "workspaceContains:**/socket.yml"
     ],
+    "type": "commonjs",
     "main": "./out/main.js",
+    "homepage": "https://socket.dev",
     "contributes": {
         "configuration": {
             "properties": {
@@ -37,14 +40,12 @@
     },
     "publisher": "SocketSecurity",
     "scripts": {
-        "vscode:prepublish": "npm run esbuild-base -- --minify",
-        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
-        "esbuild": "npm run esbuild-base -- --sourcemap",
-        "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+        "vscode:prepublish": "npm run esbuild -- --minify",
+        "esbuild-base": "esbuild --format=cjs --outdir=out/ --platform=node --sourcemap",
+        "esbuild": "npm run esbuild-base -- --bundle --external:vscode main=src/extension.ts",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",
-        "watch": "npm run esbuild-watch",
         "package-for-vscode": "vsce package --dependencies"
     },
     "dependencies": {

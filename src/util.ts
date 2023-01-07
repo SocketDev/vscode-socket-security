@@ -1,6 +1,8 @@
 import type { SocketYml } from '@socketsecurity/config';
 import * as vscode from 'vscode';
-import { EXTENSION_PREFIX } from './extension';
+
+export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
+export const EXTENSION_PREFIX = 'socket-security'
 
 const SEVERITY_LEVELS = ['low', 'middle', 'high', 'critical'];
 
