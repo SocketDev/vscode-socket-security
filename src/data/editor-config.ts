@@ -17,7 +17,6 @@ export function activate(context: vscode.ExtensionContext) {
         fn: Callback
     }
     const watchers: Map<string, Set<Listener>> = new Map()
-    const root = vscode.workspace.getConfiguration()
     function setupOnConfigChange(): void {
         if (onDidChangeConfigurationDisposable) {
             const i = context.subscriptions.lastIndexOf(onDidChangeConfigurationDisposable)
@@ -54,10 +53,11 @@ export function activate(context: vscode.ExtensionContext) {
             debugger
         }
     }
-    function getConfigValues(sections: Array<string>) {
+    function getConfigValues<RESULTS extends Array<any>>(sections: Array<string>): RESULTS {
+        const root = vscode.workspace.getConfiguration()
         return sections.map(section => {
             return root.get(section)
-        });
+        }) as RESULTS;
     }
     return {
         getConfigValues,

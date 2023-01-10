@@ -20,11 +20,13 @@
         "configuration": {
             "properties": {
                 "socket-security.showAllIssueTypes": {
+                    "order": 0,
                     "type": "boolean",
                     "default": false,
                     "description": "Show all issue types, even issues hidden by default."
                 },
                 "socket-security.minIssueLevel": {
+                    "order": 1,
                     "type": "string",
                     "default": "low",
                     "enum": [
@@ -34,6 +36,22 @@
                         "low"
                     ],
                     "description": "Hide all issues that are less important than this level, note some issues are hidden by default so you may also wish to enable showing all issue types still."
+                },
+                "socket-security.errorOverlayThreshold": {
+                    "order": 2,
+                    "type": "number",
+                    "default": 0.5,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "If an import has a summarized security score below this value (out of 0 to 1, 1 being pristine, 0 being guaranteed malware) show an error overlay in text editors."
+                },
+                "socket-security.warnOverlayThreshold": {
+                    "order": 3,
+                    "type": "number",
+                    "default": 0.8,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "If an import has a summarized security score below this value (out of 0 to 1, 1 being pristine, 0 being guaranteed malware) show a warning overlay in text editors."
                 }
             }
         }

@@ -32,7 +32,7 @@ export async function activate(context: ExtensionContext) {
         socketYaml.activate(context),
         report.activate(context)
     ])
-    javascriptFiles.activate(context, reports, socketConfig)
+    javascriptFiles.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
     const pkgWatcher = vscode.workspace.createFileSystemWatcher('package.json');
 
