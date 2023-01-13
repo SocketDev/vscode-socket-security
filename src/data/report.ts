@@ -55,6 +55,8 @@ export function radixMergeReportIssues(report: SocketReport): IssueRadixTrie {
 // type ReportEvent = {uri: string, report: SocketReport}
 // type onReportHandler = (evt: ReportEvent) => void
 export function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
+    const status = vscode.window.createStatusBarItem(`${EXTENSION_PREFIX}.report`, vscode.StatusBarAlignment.Right)
+    status.hide();
     const { workspace } = vscode
 
     const editorConfig = workspace.getConfiguration(EXTENSION_PREFIX)
@@ -155,6 +157,10 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             }
         }
         if (!needRun) return
+        status.color = 'white'
+        status.name = 'Socket Security'
+        status.text = 'Running Socket Report...'
+        status.show();
         const child = child_process.spawn(
             process.execPath,
             [
@@ -174,55 +180,74 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         try {
             const [exitCode] = await once(child, 'exit');
             if (exitCode !== 0) {
-                const msg = await stderr
-                const txt = await stdout
-                console.error('unable to get socket security report', msg, txt);
+                status.color = 'red';
+                status.text = 'Socket Report Error';
+                status.tooltip = await stderr
                 return;
             }
         } catch (e) {
-            console.error(e);
+            status.color = 'red';
+            status.text = 'Socket Report Error';
+            if (e && typeof e === 'object' && 'message' in e) {
+                status.tooltip = String(e?.message)
+            } else {
+                status.tooltip = undefined
+            }
             throw e;
         }
-        const { id } = JSON.parse(await stdout)
-        const MAX_ATTEMPTS = 10
-        let attempts = 0
-        while (attempts++ < MAX_ATTEMPTS) {
-            const req = https.get(`https://api.socket.dev/v0/report/view/${encodeURIComponent(id)}`, {
-                headers: {
-                    'Authorization': authorizationHeaderValue
-                }
-            });
-            req.end();
-            const [res] = (await once(req, 'response')) as [IncomingMessage]
-            if (res.statusCode === 200) {
-                const report = JSON.parse(await text(res)) as SocketReport
-                reportData.update(workspaceFolderURI, report);
-                return
-            } else {
-                let wait = -1;
-                if (res.statusCode === 429) {
-                    const waitUntil = res.headers['retry-after'] ?? '5'
-                    if (/^\d+$/.test(waitUntil)) {
-                        wait = parseInt(waitUntil, 10) * 1000;
-                    } else {
-                        let waitUntilTime = Date.parse(waitUntil)
-                        wait = waitUntilTime - Date.now();
+        try {
+            const { id } = JSON.parse(await stdout)
+            const MAX_ATTEMPTS = 10
+            let attempts = 0
+            while (attempts++ < MAX_ATTEMPTS) {
+                const req = https.get(`https://api.socket.dev/v0/report/view/${encodeURIComponent(id)}`, {
+                    headers: {
+                        'Authorization': authorizationHeaderValue
                     }
-                } else if ([
-                    404,
-                    403,
-                    undefined
-                ].includes(res.statusCode)) {
-                    attempts = MAX_ATTEMPTS
+                });
+                req.end();
+                const [res] = (await once(req, 'response')) as [IncomingMessage]
+                if (res.statusCode === 200) {
+                    const report = JSON.parse(await text(res)) as SocketReport
+                    reportData.update(workspaceFolderURI, report);
+                    status.text = 'Socket Report Done'
+                    status.hide()
+                    return
                 } else {
-                    wait = 5000
-                }
-                if (wait > 0) {
-                    await setTimeout(wait)
+                    let wait = -1;
+                    if (res.statusCode === 429) {
+                        const waitUntil = res.headers['retry-after'] ?? '5'
+                        if (/^\d+$/.test(waitUntil)) {
+                            wait = parseInt(waitUntil, 10) * 1000;
+                        } else {
+                            let waitUntilTime = Date.parse(waitUntil)
+                            wait = waitUntilTime - Date.now();
+                        }
+                    } else if ([
+                        404,
+                        403,
+                        undefined
+                    ].includes(res.statusCode)) {
+                        attempts = MAX_ATTEMPTS
+                    } else {
+                        wait = 5000
+                    }
+                    if (wait > 0) {
+                        await setTimeout(wait)
+                    }
                 }
             }
+            throw new Error('unable to obtain report in timely manner')
+        } catch (e) {
+            status.color = 'red';
+            status.text = 'Socket Report Error';
+            if (e && typeof e === 'object' && 'message' in e) {
+                status.tooltip = String(e?.message)
+            } else {
+                status.tooltip = undefined
+            }
+            throw e;
         }
-        throw new Error('unable to obtain report in timely manner')
     }
     function getDefaultReport(): SocketReport {
         return {
