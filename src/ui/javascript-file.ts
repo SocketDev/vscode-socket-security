@@ -1,11 +1,20 @@
 import { SocketYml } from '@socketsecurity/config';
-import * as acorn from 'acorn'
-import * as acornTypes from "ast-types";
 import * as vscode from 'vscode'
-import { SocketReport } from '../data/report';
+import { radixMergeReportIssues, SocketReport } from '../data/report';
 import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../util';
 import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
+import * as module from 'module'
+import { parseExternals } from './parse-externals';
+
+// @ts-expect-error the types are wrong
+let isBuiltin: (name: string) => boolean = module.isBuiltin ||
+    ((builtinModules: string[]) => {
+        const builtins = new Set<string>(builtinModules);
+        return (name: string) => {
+            return builtins.has(name.startsWith('node:') ? name.slice(5) : name);
+        };
+    })(module.builtinModules);
 
 // TODO: cache by detecting open editors and closing
 export function activate(
@@ -32,7 +41,8 @@ export function activate(
             height: '12px',
         },
     });
-    let srcToHoversAndCount = new Map<string, {
+    let informativeDecoration = vscode.window.createTextEditorDecorationType({});
+    let srcToHoversAndCount = new Map<vscode.TextDocument['fileName'], {
         refCount: number,
         hovers: Array<vscode.Hover>
     }>()
@@ -42,38 +52,41 @@ export function activate(
     // })
     context.subscriptions.push(
         vscode.workspace.onDidChangeTextDocument(e => {
+            if (e.document.uri.scheme !== 'file') return;
             decorateEditors()
-            let savedUrlSrc = urlToSrc.get(e.document.fileName)
-            if (savedUrlSrc === undefined) {
-                return
-            }
-            deref(savedUrlSrc)
         })
     )
     context.subscriptions.push(
         vscode.workspace.onDidCloseTextDocument(e => {
-            let savedUrlSrc = urlToSrc.get(e.fileName)
-            if (savedUrlSrc === undefined) {
-                return
-            }
-            deref(savedUrlSrc)
+            deref(e)
         })
     )
-    function deref(src: string) {
-        let hoversAndCount = srcToHoversAndCount.get(src)
+    function deref(doc: vscode.TextDocument) {
+        let hoversAndCount = srcToHoversAndCount.get(doc.fileName);
         if (hoversAndCount) {
             if (hoversAndCount.refCount === 1) {
-                srcToHoversAndCount.delete(src)
+                srcToHoversAndCount.delete(doc.fileName);
             } else {
                 hoversAndCount.refCount--;
             }
         }
     }
+    type PackageScore = {
+        score: {
+           depscore: number
+        },
+        metrics: {
+            linesOfCode: number,
+            dependencyCount: number,
+            devDependencyCount: number,
+            transitiveDependencyCount: number,
+        }
+    }
     const depscoreCache = new Map<string, {
         expires: number,
-        score: Promise<number>
+        score: Promise<PackageScore>
     }>()
-    function getDepscore(pkgName: string, signal: AbortSignal): Promise<number> {
+    function getDepscore(pkgName: string, signal: AbortSignal): Promise<PackageScore> {
         if (signal.aborted) {
             return Promise.reject('Aborted');
         }
@@ -82,7 +95,7 @@ export function activate(
         if (existing && time < existing.expires) {
             return existing.score;
         }
-        const score = new Promise<number>((f, r) => {
+        const score = new Promise<PackageScore>((f, r) => {
             const req = https.get(`https://socket.dev/api/npm/package-info/score?name=${pkgName}`);
             function cleanupReq() {
                 try {
@@ -107,7 +120,7 @@ export function activate(
                 if (res.statusCode === 200) {
                     consumer.json(res).then((obj: any) => {
                         signal.removeEventListener('abort', cleanupRes);
-                        f(obj?.score?.depscore);
+                        f(obj as PackageScore);
                     }).catch(e => {
                         r(e);
                     })
@@ -121,225 +134,34 @@ export function activate(
         });
         return score;
     }
-    type ExternalRef = {
-        name: string,
-        range: vscode.Range
-    }
-    function parseExternals(src: string): Array<ExternalRef> {
-        const results: Array<ExternalRef> = []
-        const ast = acorn.parse(
-            src,
-            {
-                ecmaVersion: 'latest',
-                allowImportExportEverywhere: true,
-                locations: true
-            }
-        )
-        function addResult(node: acornTypes.namedTypes.Node, name: string) {
-            if (/^[\.\/]/u.test(name)) {
-                return
-            }
-            name = (
-                name.startsWith('@') ?
-                name.split('/', 2) :
-                name.split('/', 1)
-            ).join('/')
-            const loc = node.loc
-            if (!loc) return
-            const startPos: vscode.Position = new vscode.Position(loc.start.line - 1, loc.start.column)
-            const endPos: vscode.Position = new vscode.Position(loc.end.line - 1, loc.end.column)
-            const range = new vscode.Range(startPos, endPos)
-            results.push({
-                range,
-                name
-            })
-        }
-        const kDYNAMIC_VALUE: unique symbol = Symbol('dynamic_value')
-        type DYNAMIC_VALUE = typeof kDYNAMIC_VALUE
-        type PRIMITIVE = bigint | boolean | null | number | string | undefined
-        /**
-         * Lazy evaluator for finding out if something is constant at compile time
-         * 
-         * Used to deal w/ some things like require('@babel/${'traverse'}') generated code
-         * 
-         * Does not support compile time symbols (well known ones)
-         * Does not support regexp symbols
-         * Does not support array literals
-         * Does not support object literals
-         *
-         * @returns a function to compute the value (may be non-trivial cost)
-         */
-        function constFor(node: acornTypes.ASTNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
-            if (acornTypes.namedTypes.TemplateLiteral.check(node)) {
-                if (node.quasis.length === 1) {
-                    return () => node.quasis[0].value.cooked
-                } else {
-                    let constExps: Array<Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>> = []
-                    for (const exp of node.expressions) {
-                        let constExp = constFor(exp)
-                        if (constExp === kDYNAMIC_VALUE) {
-                            return kDYNAMIC_VALUE
-                        }
-                        constExps.push(constExp)
-                    }
-                    return () => {
-                        let result = ''
-                        let i
-                        for (i = 0; i < node.quasis.length - 1; i++) {
-                            result += `${node.quasis[i].value.cooked}${constExps[i]()}`
-                        }
-                        return `${result}${node.quasis[i].value.cooked}`
-                    }
-                }
-            } else if (acornTypes.namedTypes.BigIntLiteral.check(node)) {
-                return () => BigInt(node.value)
-            } else if (acornTypes.namedTypes.Literal.check(node)) {
-                const { value } = node
-                if (value && typeof value === 'object') {
-                    // regexp literal
-                    return kDYNAMIC_VALUE
-                }
-                return () => value
-            } else if (acornTypes.namedTypes.BinaryExpression.check(node)) {
-                const left = constFor(node.left)
-                if (left === kDYNAMIC_VALUE) {
-                    return kDYNAMIC_VALUE
-                }
-                const right = constFor(node.right)
-                if (right === kDYNAMIC_VALUE) {
-                    return kDYNAMIC_VALUE
-                }
-                let { operator } = node
-                if (operator === 'in' || operator === 'instanceof') {
-                    return kDYNAMIC_VALUE
-                }
-                // lots of TS unhappy with odd but valid coercions
-                return {
-                    '==': () => left() == right(),
-                    '!=': () => left() != right(),
-                    '===': () => left() === right(),
-                    '!==': () => left() !== right(),
-                    // @ts-expect-error
-                    '<': () => left() < right(),
-                    // @ts-expect-error
-                    '<=': () => left() <= right(),
-                    // @ts-expect-error
-                    '>': () => left() > right(),
-                    // @ts-expect-error
-                    '>=': () => left() >= right(),
-                    // @ts-expect-error
-                    '<<': () => left() << right(),
-                    // @ts-expect-error
-                    '>>': () => left() >> right(),
-                    // @ts-expect-error
-                    '>>>': () => left() >>> right(),
-                    // @ts-expect-error
-                    '+': () => left() + right(),
-                    // @ts-expect-error
-                    '-': () => left() - right(),
-                    // @ts-expect-error
-                    '*': () => left() * right(),
-                    // @ts-expect-error
-                    '/': () => left() / right(),
-                    // @ts-expect-error
-                    '%': () => left() % right(),
-                    // @ts-expect-error
-                    '&': () => left() & right(),
-                    // @ts-expect-error
-                    '|': () => left() | right(),
-                    // @ts-expect-error
-                    '^': () => left() ^ right(),
-                    // @ts-expect-error
-                    '**': () => left() ** right()
-                }[operator]
-            } else if (acornTypes.namedTypes.UnaryExpression.check(node)) {
-                const arg = constFor(node.argument)
-                if (arg === kDYNAMIC_VALUE) {
-                    return kDYNAMIC_VALUE
-                }
-                const { operator } = node
-                if (operator === 'delete') {
-                    return kDYNAMIC_VALUE
-                }
-                if (operator === 'void') {
-                    return () => undefined
-                }
-                return {
-                    // @ts-expect-error
-                    '-': () => -arg(),
-                    // @ts-expect-error
-                    '+': () => +arg(),
-                    '!': () => !arg(),
-                    // @ts-expect-error
-                    '~': () => ~arg(),
-                    'typeof': () => typeof arg(),
-                }[operator]
-            } else if (acornTypes.namedTypes.ParenthesizedExpression.check(node)) {
-                return constFor(node.expression)
-            } else if (acornTypes.namedTypes.AwaitExpression.check(node)) {
-                if (!node.argument) {
-                    // WTF
-                    return kDYNAMIC_VALUE
-                }
-                const arg = constFor(node.argument)
-                if (arg === kDYNAMIC_VALUE) {
-                    return kDYNAMIC_VALUE
-                }
-                return arg
-            }
-            return kDYNAMIC_VALUE
-        }
-        acornTypes.visit(ast, {
-            visitImportDeclaration(path) {
-                addResult(path.node.source, `${path.node.source.value}`)
-                return false
-            },
-            visitImportExpression(path) {
-                const { node } = path
-                let constantArg = constFor(node.source)
-                if (constantArg !== kDYNAMIC_VALUE) {
-                    addResult(node, `${constantArg()}`)
-                }
-                this.traverse(path)
-            },
-            visitCallExpression(path) {
-                const { node } = path
-                const { callee } = node
-                if (node.arguments.length > 0) {
-                    if (acornTypes.namedTypes.Identifier.check(callee) && callee.name === 'require') {
-                        const { arguments: [firstArg] } = node
-                        let constantArg = constFor(firstArg)
-                        if (constantArg !== kDYNAMIC_VALUE) {
-                            addResult(node, `${constantArg()}`)
-                        }
-                    }
-                }
-                this.traverse(path)
-            }
-        })
-        return results
-    }
-    function refAndParseIfNeeded(src: string, socketReport: SocketReport, socketYamlConfig: SocketYml) {
-        let hoversAndCount = srcToHoversAndCount.get(src)
+    function refAndParseIfNeeded(doc: vscode.TextDocument, socketReport: SocketReport, socketYamlConfig: SocketYml) {
+        // const src = doc.getText()
+        let hoversAndCount = srcToHoversAndCount.get(doc.fileName)
         if (hoversAndCount) {
             hoversAndCount.refCount++
         } else {
             if (!socketReport) return
             let hovers: Array<vscode.Hover> = []
-            const externals = parseExternals(src)
+            const externals = parseExternals(doc)
+            const issues = radixMergeReportIssues(socketReport)
             for (const {name, range} of externals) {
-                let relevantIssues: SocketReport['issues'] = []
-                for (const issue of socketReport.issues) {
-                    if (issue.value.locations.find(l => {
-                        return l.type === 'npm' && l.value.package === name
-                    })) {
-                        if (shouldShowIssue(issue.type, issue.value.severity, socketYamlConfig)) {
-                            relevantIssues.push(issue)
+                const pkgIssues = issues.get(name)
+                if (!pkgIssues || pkgIssues.size === 0) {
+                    continue
+                }
+                const relevantIssues = []
+                for (const [severity, types] of pkgIssues) {
+                    for (const [type, descriptions] of types) {
+                        for (const description of descriptions) {
+                            if (shouldShowIssue(type, severity, socketYamlConfig)) {
+                                relevantIssues.push({
+                                    type,
+                                    severity,
+                                    description
+                                })
+                            }
                         }
                     }
-                }
-                if (relevantIssues.length === 0) {
-                    continue;
                 }
                 const viz = new vscode.MarkdownString(`
 Socket Security Summary for <a href="https://socket.dev/npm/package/${name}">${name} $(link-external)</a>:
@@ -347,13 +169,13 @@ Socket Security Summary for <a href="https://socket.dev/npm/package/${name}">${n
 Severity | Type | Description
 -------- | ---- | -----------
 ${relevantIssues.sort((a, b) => sortIssues({
-                    severity: a.value.severity,
+                    severity: a.severity,
                     type: a.type
                 }, {
-                    severity: b.value.severity,
+                    severity: b.severity,
                     type: b.type
                 })).map(issue => {
-                    return `${issue.value.severity} | ${issue.type} | ${issue.value.description}`
+                    return `${issue.severity} | ${issue.type} | ${issue.description}`
                 }).join('\n')
                     }
 `, true);
@@ -361,7 +183,7 @@ ${relevantIssues.sort((a, b) => sortIssues({
                 hovers.push(new vscode.Hover(viz, range))
             }
 
-            srcToHoversAndCount.set(src, {
+            srcToHoversAndCount.set(doc.fileName, {
                 refCount: 1,
                 hovers
             })
@@ -380,17 +202,17 @@ ${relevantIssues.sort((a, b) => sortIssues({
             if (existingSrc !== undefined) {
                 // changed
                 if (existingSrc !== src) {
-                    deref(src);
-                    refAndParseIfNeeded(src, socketReport, socketYamlConfig);
+                    deref(document);
+                    refAndParseIfNeeded(document, socketReport, socketYamlConfig);
                 } else {
                     // unchanged src, changed setting?
                 }
             } else {
                 // new
-                refAndParseIfNeeded(src, socketReport, socketYamlConfig);
+                refAndParseIfNeeded(document, socketReport, socketYamlConfig);
             }
             urlToSrc.set(document.fileName, src)
-            let cachedHoversAndCount = srcToHoversAndCount.get(src)
+            let cachedHoversAndCount = srcToHoversAndCount.get(document.fileName)
             if (cachedHoversAndCount) {
                 let { hovers } = cachedHoversAndCount
                 if (hovers.length) {
@@ -404,7 +226,7 @@ ${relevantIssues.sort((a, b) => sortIssues({
             return undefined
         }
     }));
-    let currentDecorateEditor: AbortController = new AbortController()
+    let currentDecorateEditors: AbortController = new AbortController()
     editorConfig.onDependentConfig(
         [
             `${EXTENSION_PREFIX}.warnOverlayThreshold`,
@@ -417,16 +239,57 @@ ${relevantIssues.sort((a, b) => sortIssues({
         if (e.document.languageId !== 'javascript') {
             return
         }
+        const informativeDecorations: Array<vscode.DecorationOptions> = [];
         const warningDecorations: Array<vscode.DecorationOptions> = [];
         const errorDecorations: Array<vscode.DecorationOptions> = [];
 
+        e.setDecorations(informativeDecoration, informativeDecorations);
         e.setDecorations(errorDecoration, errorDecorations);
         e.setDecorations(warningDecoration, warningDecorations);
 
-        for (const {name, range} of parseExternals(e.document.getText())) {
-            getDepscore(name, abortSignal).then(n => {
+        for (const {name, range} of parseExternals(e.document)) {
+            if (isBuiltin(name)) {
+                const deco: vscode.DecorationOptions = {
+                    range,
+                    hoverMessage: `Socket Security skipped for builtin module`
+                }
+                informativeDecorations.push(deco);
+                e.setDecorations(informativeDecoration, informativeDecorations)
+                continue;
+            }
+            getDepscore(name, abortSignal).then(score => {
+
                 if (abortSignal.aborted) {
                     return;
+                }
+                const { score: { depscore }} = score
+                const depscoreStr = (depscore * 100).toFixed(0)
+                const hoverMessage = new vscode.MarkdownString(`
+Socket Security for [${name} $(link-external)](https://socket.dev/npm/package/${name}): ${depscoreStr}
+                
+<table>
+<tr>
+<td> Lines of Code </td>
+<td>${ score.metrics.linesOfCode } </td>
+</tr>
+<tr>
+<td> Dependencies </td>
+<td>${ score.metrics.dependencyCount } </td>
+</tr>
+<tr>
+<td> Dev Dependencies </td>
+<td>${ score.metrics.devDependencyCount} </td>
+</tr>
+<tr>
+<td> Transitive Dependencies </td>
+<td>${score.metrics.transitiveDependencyCount} </td>
+</tr>
+</table>
+`, true)
+                hoverMessage.supportHtml = true
+                const deco: vscode.DecorationOptions = {
+                    range,
+                    hoverMessage
                 }
                 const [
                     warnOverlayThreshold,
@@ -437,34 +300,28 @@ ${relevantIssues.sort((a, b) => sortIssues({
                 ]);
                 let decoType = null
                 let decoPool = null
-                if (n < errorOverlayThreshold) {
+                // have to scale, API is 0-1 Config/UX uses 0-100
+                const depscoreScaledToConfig = depscore * 100
+                if (depscoreScaledToConfig < errorOverlayThreshold) {
                     decoType = errorDecoration
                     decoPool = errorDecorations
-                } else if (n < warnOverlayThreshold) {
+                } else if (depscoreScaledToConfig < warnOverlayThreshold) {
                     decoType = warningDecoration
                     decoPool = warningDecorations
                 }
                 if (!decoType || !decoPool) {
-                    return;
+                    decoType = informativeDecoration;
+                    decoPool = informativeDecorations;
                 }
-                const deco: vscode.DecorationOptions = {
-                    range,
-                    hoverMessage: new vscode.MarkdownString(`Socket Security for [${name} $(link-external)](https://socket.dev/npm/package/${name}): ${n}/1`, true),
-                    // renderOptions: {
-                    //     after: {
-                    //         // contentText: `Security ${n > 0.5 ? 'warning' : 'concern'}`,
-                    //     }
-                    // }
-                }
-                decoPool.push(deco)
-                e.setDecorations(decoType, decoPool)
+                decoPool.push(deco);
+                e.setDecorations(decoType, decoPool);
             })
         }
     }
     function decorateEditors() {
-        currentDecorateEditor.abort();
-        currentDecorateEditor = new AbortController();
-        const abortSignal = currentDecorateEditor.signal;
+        currentDecorateEditors.abort();
+        currentDecorateEditors = new AbortController();
+        const abortSignal = currentDecorateEditors.signal;
         for (const e of vscode.window.visibleTextEditors) {
             decorateEditor(e, abortSignal);
         }

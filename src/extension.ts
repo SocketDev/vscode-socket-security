@@ -3,15 +3,15 @@
 
 import * as vscode from 'vscode';
 import { ExtensionContext, languages, workspace } from 'vscode';
-import jsonToAST from 'json-to-ast'
 import * as socketYaml from './data/socket-yaml'
 import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
 import * as report from './data/report'
-import { SocketReport } from './data/report';
+import { radixMergeReportIssues, SocketReport } from './data/report';
 import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
 import * as javascriptFiles from './ui/javascript-file'
+import { parseExternals } from './ui/parse-externals';
 
 export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
@@ -80,62 +80,46 @@ export async function activate(context: ExtensionContext) {
             }
         })
     )
-    function normalizeReportAndLocations(report: SocketReport, pkg: jsonToAST.ValueNode) {
-        if (pkg.type !== 'Object') {
-            return [];
+    function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
+        const externals = parseExternals(doc)
+        const issuesForSource = radixMergeReportIssues(report)
+        let ranges: Record<string, Array<vscode.Range>> = Object.create(null);
+        let prioritizedRanges: Record<string, { range: vscode.Range, prioritize: boolean }> = Object.create(null)
+        function pushRelatedRange(name: string, range: vscode.Range) {
+            const existingRanges = ranges[name] ?? []
+            existingRanges.push(range)
+            ranges[name] = existingRanges
         }
-        let depSources: Array<jsonToAST.ObjectNode> = [];
-        for (const pkgField of pkg.children) {
-            if ([
-                'dependencies',
-                'devDependencies'
-            ].includes(pkgField.key.value)) {
-                if (pkgField.value.type === 'Object') {
-                    depSources.push(pkgField.value)
-                }
-            }
-        }
-        if (depSources.length === 0) {
-            return [];
-        }
-        function findSource(name: string): jsonToAST.PropertyNode | null {
-            for (const source of depSources) {
-                for (const dep of source.children) {
-                    if (dep.key.value === name) return dep
-                }
-            }
-            return null
-        }
-        type IssuesBySource = Map<string, IssuesBySeverity>
-        type IssuesBySeverity = Map<string, IssuesByType>
-        type IssuesByType = Map<string, IssueDescriptions>
-        type IssueDescriptions = Set<string>
-        let issuesForSource : IssuesBySource = new Map()
-        let sourceLocations = new Map<string, jsonToAST.Location>()
-        for (const issue of report.issues) {
-            const type = issue.type
-            const description = issue.value.description
-            const severity = issue.value.severity
-            for (const issueLoc of issue.value.locations) {
-                if (issueLoc.type === 'npm') {
-                    const depSource = issueLoc.value.package
-                    const inPkg = findSource(depSource)
-                    if (inPkg?.loc) {
-                        const existingIssuesBySeverity = issuesForSource.get(depSource) ?? new Map()
-                        issuesForSource.set(depSource, existingIssuesBySeverity)
-                        const existingIssuesByType = existingIssuesBySeverity.get(severity) ?? new Map()
-                        existingIssuesBySeverity.set(severity, existingIssuesByType)
-                        const existingIssuesByDescription = existingIssuesByType.get(type) ?? new Set()
-                        existingIssuesByType.set(type, existingIssuesByDescription)
-                        existingIssuesByDescription.add(description);
-                        sourceLocations.set(depSource, inPkg.loc)
+        for (let { name, range, prioritize } of externals) {
+            prioritize = prioritize ?? false
+            let existingIssuesBySeverity = issuesForSource.get(name)
+            if (!existingIssuesBySeverity) continue
+            const existingPrioritizedRange = prioritizedRanges[name]
+            if (existingPrioritizedRange) {
+                if (existingPrioritizedRange.prioritize) {
+                    if (prioritize && range.start.isBefore(existingPrioritizedRange.range.start)) {
+                        pushRelatedRange(name, existingPrioritizedRange.range);
+                        prioritizedRanges[name] = { range, prioritize }
+                        continue
+                    } else {
+                        pushRelatedRange(name, range);
+                    }
+                } else {
+                    if (prioritize || range.start.isBefore(existingPrioritizedRange.range.start)) {
+                        pushRelatedRange(name, existingPrioritizedRange.range);
+                        prioritizedRanges[name] = { range, prioritize }
+                        continue
+                    } else {
+                        pushRelatedRange(name, range);
                     }
                 }
+            } else {
+                prioritizedRanges[name] = { range, prioritize }
             }
         }
-        let issueLocations = []
-        for (const [depSource, loc] of sourceLocations) {
-            let existingIssuesBySeverity = issuesForSource.get(depSource)
+        const issueLocations = []
+        for (const [ name, {range} ] of Object.entries(prioritizedRanges)) {
+            let existingIssuesBySeverity = issuesForSource.get(name)
             if (!existingIssuesBySeverity) continue
             for (const [severity, existingIssuesByType] of existingIssuesBySeverity) {
                 for (const type of [...existingIssuesByType.keys()].sort()) {
@@ -146,7 +130,8 @@ export async function activate(context: ExtensionContext) {
                                 type,
                                 description,
                                 severity,
-                                loc
+                                range,
+                                related: ranges[name] ?? []
                             })
                         }
                     }
@@ -173,11 +158,6 @@ export async function activate(context: ExtensionContext) {
             return
         }
         for (const textDocumentURI of workspacePkgs) {
-            const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
-
-            const pkgJsonAST = jsonToAST(packageJSONSource, {
-                loc: true
-            });
             // TODO: report history
             // const historyKey = `report.history.${textDocumentURI.fsPath}`;
             // type ReportHistoryEntry = {
@@ -195,7 +175,14 @@ export async function activate(context: ExtensionContext) {
             //     }
             // }
             // context.workspaceState.update(historyKey, reportHistory)
-            const relevantIssues = normalizeReportAndLocations(currentReport, pkgJsonAST)?.sort(sortIssues)
+            const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
+            const relevantIssues = normalizeReportAndLocations(currentReport, {
+                getText() {
+                    return packageJSONSource
+                },
+                fileName: textDocumentURI.fsPath,
+                languageId: 'json'
+            })?.sort(sortIssues)
             if (relevantIssues && relevantIssues.length) {
                 const diagnosticsToShow = (await Promise.all(relevantIssues.map(
                     async (issue) => {
@@ -203,44 +190,50 @@ export async function activate(context: ExtensionContext) {
                         if (!should) {
                             return null
                         }
-                        const td = Buffer.from(
-                            await workspace.fs.readFile(textDocumentURI)
-                        ).toString()
-                        let lineStartPattern = /^|(?:\r?\n)/g
-                        const lines = td.matchAll(lineStartPattern);
-                        let line = -1
-                        let lastLineOffset = 0
-                        let startPos
-                        let endPos
-                        for (const match of lines) {
-                            line++
-                            if (match.index == undefined) {
-                                continue
-                            }
-                            let startOfLineOffset = match.index + match[0].length
-                            if (!startPos && startOfLineOffset >= issue.loc.start.offset) {
-                                startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
-                            }
-                            if (!endPos && startOfLineOffset >= issue.loc.end.offset) {
-                                endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
-                            }
-                            lastLineOffset = startOfLineOffset
-                        }
-                        if (!startPos) {
-                            startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
-                        }
-                        if (!endPos) {
-                            endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
-                        }
-                        const range = new vscode.Range(startPos, endPos)
+                        // const td = Buffer.from(
+                        //     await workspace.fs.readFile(textDocumentURI)
+                        // ).toString()
+                        // let lineStartPattern = /^|(?:\r?\n)/g
+                        // const lines = td.matchAll(lineStartPattern);
+                        // let line = -1
+                        // let lastLineOffset = 0
+                        // let startPos
+                        // let endPos
+                        // for (const match of lines) {
+                        //     line++
+                        //     if (match.index == undefined) {
+                        //         continue
+                        //     }
+                        //     let startOfLineOffset = match.index + match[0].length
+                        //     if (!startPos && startOfLineOffset >= issue.loc.start.offset) {
+                        //         startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
+                        //     }
+                        //     if (!endPos && startOfLineOffset >= issue.loc.end.offset) {
+                        //         endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
+                        //     }
+                        //     lastLineOffset = startOfLineOffset
+                        // }
+                        // if (!startPos) {
+                        //     startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
+                        // }
+                        // if (!endPos) {
+                        //     endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
+                        // }
+                        // const range = new vscode.Range(startPos, endPos)
                         const diag = new vscode.Diagnostic(
-                            range,
+                            issue.range,
                             issue.description, 
                             issue.severity === 'low' ?
                                 vscode.DiagnosticSeverity.Information :
                                 issue.severity !== 'critical' ?
                                     vscode.DiagnosticSeverity.Warning :
                                     vscode.DiagnosticSeverity.Error
+                        )
+                        diag.relatedInformation = issue.related.map(
+                            (r) => new vscode.DiagnosticRelatedInformation(
+                                new vscode.Location(textDocumentURI, r),
+                                'installation reference'
+                            )
                         )
                         diag.source = DIAGNOSTIC_SOURCE_STR
                         diag.code = issue.type

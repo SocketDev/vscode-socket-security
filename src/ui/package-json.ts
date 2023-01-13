@@ -15,11 +15,11 @@ export function provideCodeLenses(document: vscode.TextDocument, token: vscode.C
         if (child) {
             if (!child.loc) return
             const startPos = new vscode.Position(
-                child.loc.start.line,
+                child.loc.start.line - 1,
                 child.loc.start.column
             )
             const endPos = new vscode.Position(
-                child.loc.end.line,
+                child.loc.end.line - 1,
                 child.loc.end.column
             )
             const range = new vscode.Range(startPos, endPos)
