@@ -2,7 +2,7 @@
     "name": "vscode-socket-security",
     "displayName": "Socket Security",
     "description": "Editor integration with Socket Security",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "private": true,
     "license": "MIT",
     "engines": {
