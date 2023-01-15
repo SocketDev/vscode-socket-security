@@ -192,9 +192,6 @@ ${relevantIssues.sort((a, b) => sortIssues({
     context.subscriptions.push(vscode.languages.registerHoverProvider('javascript', {
         provideHover(document, position, token) {
             const socketReportData = reports.effectiveReportForUri(document.uri)
-            if (socketReportData.defaulted) {
-                return
-            }
             const socketReport = socketReportData.data
             const socketYamlConfig = socketConfig.effectiveConfigForUri(document.uri).data
             const src = document.getText()

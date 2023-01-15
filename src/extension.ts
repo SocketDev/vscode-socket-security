@@ -142,9 +142,6 @@ export async function activate(context: ExtensionContext) {
     }
     async function populateDiagnostics(workspaceFolderURI: vscode.Uri) {
         const effectiveData = reports.effectiveReportForUri(workspaceFolderURI)
-        if (effectiveData.defaulted) {
-            return
-        }
         const currentReport = effectiveData.data
         if (!currentReport) return
         const socketYamlConfig = socketConfig.effectiveConfigForUri(workspaceFolderURI).data

@@ -11,7 +11,8 @@
     "icon": "socket-square.png",
     "activationEvents": [
         "workspaceContains:**/package.json",
-        "workspaceContains:**/socket.yml"
+        "workspaceContains:**/socket.yml",
+        "onLanguage:javascript"
     ],
     "type": "commonjs",
     "main": "./out/main.js",
@@ -65,8 +66,8 @@
     "publisher": "SocketSecurity",
     "scripts": {
         "vscode:prepublish": "npm run esbuild -- --minify",
-        "esbuild-base": "esbuild --format=cjs --outdir=out/ --platform=node --sourcemap",
-        "esbuild": "npm run esbuild-base -- --bundle --external:vscode main=src/extension.ts",
+        "esbuild-base": "esbuild --bundle --external:vscode --outdir=out/ --platform=node --sourcemap",
+        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts && npm run esbuild-base -- --format=esm --out-extension:.js=.mjs cli='vendor/lib/node_modules/@socketsecurity/cli/cli.js'",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",

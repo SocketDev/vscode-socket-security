@@ -7,6 +7,8 @@ import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
 import * as stableStringify from 'safe-stable-stringify';
+import fs from "node:fs";
+import worker_threads from 'node:worker_threads'
 
 export type SocketReport = {
     issues: Array<{
@@ -56,7 +58,26 @@ export function radixMergeReportIssues(report: SocketReport): IssueRadixTrie {
 // type onReportHandler = (evt: ReportEvent) => void
 export function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
     const status = vscode.window.createStatusBarItem(`${EXTENSION_PREFIX}.report`, vscode.StatusBarAlignment.Right)
+    status.name = 'Socket Security'
     status.hide();
+    function showErrorStatus(error: unknown) {
+        status.color = new vscode.ThemeColor('statusBarItem.errorForeground');
+        status.text = 'Socket Report Error';
+        if (error && typeof error === 'object' && 'message' in error) {
+            status.tooltip = String(error?.message)
+        } else {
+            status.tooltip = error == undefined ? undefined : String(error)
+        }
+        status.text = String(status.tooltip)
+        console.error('ERROR in Reporting', status.tooltip)
+        status.show();
+    }
+    function showStatus(text: string, tooltip?: string) {
+        status.color = new vscode.ThemeColor('statusBarItem.foreground');
+        status.text = text;
+        status.tooltip = tooltip;
+        status.show();
+    }
     const { workspace } = vscode
 
     const editorConfig = workspace.getConfiguration(EXTENSION_PREFIX)
@@ -157,14 +178,30 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             }
         }
         if (!needRun) return
-        status.color = 'white'
-        status.name = 'Socket Security'
-        status.text = 'Running Socket Report...'
-        status.show();
+        showStatus('Running Socket Report...')
+        // const child = new worker_threads.Worker(
+        //     `
+        //     import(${
+        //         context.asAbsolutePath('./out/cli.mjs')
+        //     })`,
+        //     {
+        //         argv: [
+        //             'report', 'create', '--json', workspaceFolderURI.fsPath
+        //         ],
+        //         eval: true
+        //     }
+        // )
+        const entryPoint = context.asAbsolutePath('./vendor/lib/node_modules/@socketsecurity/cli/cli.js');
+        showStatus(entryPoint)
+        const logger = vscode.window.createOutputChannel('socket-security', {
+            log: true
+        });
+        // logger.info(JSON.stringify(process.execPath), JSON.stringify(entryPoint), 'report', 'create', '--json', JSON.stringify(workspaceFolderURI.fsPath))
+        showStatus('Creating Socket Report...')
         const child = child_process.spawn(
             process.execPath,
             [
-                context.asAbsolutePath('./vendor/bin/socket'),
+                entryPoint,
                 'report', 'create', '--json', workspaceFolderURI.fsPath
             ],
             {
@@ -179,23 +216,21 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         const stderr = text(child.stdout);
         try {
             const [exitCode] = await once(child, 'exit');
+            logger.info('Unable to run socket CLI', {
+                exitCode,
+                stdout: await stdout,
+                stderr: await stderr
+            })
             if (exitCode !== 0) {
-                status.color = 'red';
-                status.text = 'Socket Report Error';
-                status.tooltip = await stderr
+                showErrorStatus((await stderr) || 'Failed to run socket reporter child process');
                 return;
             }
         } catch (e) {
-            status.color = 'red';
-            status.text = 'Socket Report Error';
-            if (e && typeof e === 'object' && 'message' in e) {
-                status.tooltip = String(e?.message)
-            } else {
-                status.tooltip = undefined
-            }
+            showErrorStatus(e)
             throw e;
         }
         try {
+            showStatus('Running Socket Report...')
             const { id } = JSON.parse(await stdout)
             const MAX_ATTEMPTS = 10
             let attempts = 0
@@ -209,6 +244,8 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
                 const [res] = (await once(req, 'response')) as [IncomingMessage]
                 if (res.statusCode === 200) {
                     const report = JSON.parse(await text(res)) as SocketReport
+                    context.workspaceState.update(`${EXTENSION_PREFIX}.lastReport`, report)
+                    context.workspaceState.update(`${EXTENSION_PREFIX}.lastReport`, report)
                     reportData.update(workspaceFolderURI, report);
                     status.text = 'Socket Report Done'
                     status.hide()
@@ -239,18 +276,13 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             }
             throw new Error('unable to obtain report in timely manner')
         } catch (e) {
-            status.color = 'red';
-            status.text = 'Socket Report Error';
-            if (e && typeof e === 'object' && 'message' in e) {
-                status.tooltip = String(e?.message)
-            } else {
-                status.tooltip = undefined
-            }
+            showErrorStatus(e);
             throw e;
         }
     }
     function getDefaultReport(): SocketReport {
-        return {
+        const lastReport = context.workspaceState.get(`${EXTENSION_PREFIX}.lastReport`) as (SocketReport | undefined)
+        return lastReport ?? {
             issues: []
         }
     }
