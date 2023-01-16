@@ -34,7 +34,7 @@ export async function activate(context: ExtensionContext) {
     ])
     javascriptFiles.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
-    const pkgWatcher = vscode.workspace.createFileSystemWatcher('package.json');
+    const pkgWatcher = vscode.workspace.createFileSystemWatcher('**/package.json');
 
     context.subscriptions.push(
         diagnostics,
@@ -127,6 +127,7 @@ export async function activate(context: ExtensionContext) {
                     if (existingIssuesByDescription) {
                         for (const description of existingIssuesByDescription) {
                             issueLocations.push({
+                                pkgName: name,
                                 type,
                                 description,
                                 severity,
@@ -155,23 +156,6 @@ export async function activate(context: ExtensionContext) {
             return
         }
         for (const textDocumentURI of workspacePkgs) {
-            // TODO: report history
-            // const historyKey = `report.history.${textDocumentURI.fsPath}`;
-            // type ReportHistoryEntry = {
-            //     firstTimeShown: number,
-            //     firstDependentVersionShownAt: string
-            // }
-            // const reportHistory: Record<string, ReportHistoryEntry> = context.workspaceState.get(historyKey) ?? Object.create(null)
-            // const shownTime = Date.now()
-            // for (const issue of currentReport.issues) {
-            //     if (!reportHistory[issue.type]) {
-            //         reportHistory[issue.type] = {
-            //             firstTimeShown: shownTime,
-            //             firstDependentVersionShownAt: pkgJsonAST.type === 'Object' ? pkgJsonAST.children.
-            //         }
-            //     }
-            // }
-            // context.workspaceState.update(historyKey, reportHistory)
             const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
             const relevantIssues = normalizeReportAndLocations(currentReport, {
                 getText() {
@@ -187,36 +171,6 @@ export async function activate(context: ExtensionContext) {
                         if (!should) {
                             return null
                         }
-                        // const td = Buffer.from(
-                        //     await workspace.fs.readFile(textDocumentURI)
-                        // ).toString()
-                        // let lineStartPattern = /^|(?:\r?\n)/g
-                        // const lines = td.matchAll(lineStartPattern);
-                        // let line = -1
-                        // let lastLineOffset = 0
-                        // let startPos
-                        // let endPos
-                        // for (const match of lines) {
-                        //     line++
-                        //     if (match.index == undefined) {
-                        //         continue
-                        //     }
-                        //     let startOfLineOffset = match.index + match[0].length
-                        //     if (!startPos && startOfLineOffset >= issue.loc.start.offset) {
-                        //         startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
-                        //     }
-                        //     if (!endPos && startOfLineOffset >= issue.loc.end.offset) {
-                        //         endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
-                        //     }
-                        //     lastLineOffset = startOfLineOffset
-                        // }
-                        // if (!startPos) {
-                        //     startPos = new vscode.Position(line - 1, issue.loc.start.offset - lastLineOffset)
-                        // }
-                        // if (!endPos) {
-                        //     endPos = new vscode.Position(line - 1, issue.loc.end.offset - lastLineOffset)
-                        // }
-                        // const range = new vscode.Range(startPos, endPos)
                         const diag = new vscode.Diagnostic(
                             issue.range,
                             issue.description, 
@@ -233,7 +187,7 @@ export async function activate(context: ExtensionContext) {
                             )
                         )
                         diag.source = DIAGNOSTIC_SOURCE_STR
-                        diag.code = issue.type
+                        diag.code = `${issue.type}, ${issue.pkgName}`
                         return diag
                     }
                 ))).filter(x => !!x) as vscode.Diagnostic[]

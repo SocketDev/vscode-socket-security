@@ -7,8 +7,6 @@ import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
 import * as stableStringify from 'safe-stable-stringify';
-import fs from "node:fs";
-import worker_threads from 'node:worker_threads'
 
 export type SocketReport = {
     issues: Array<{
@@ -179,24 +177,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         }
         if (!needRun) return
         showStatus('Running Socket Report...')
-        // const child = new worker_threads.Worker(
-        //     `
-        //     import(${
-        //         context.asAbsolutePath('./out/cli.mjs')
-        //     })`,
-        //     {
-        //         argv: [
-        //             'report', 'create', '--json', workspaceFolderURI.fsPath
-        //         ],
-        //         eval: true
-        //     }
-        // )
         const entryPoint = context.asAbsolutePath('./vendor/lib/node_modules/@socketsecurity/cli/cli.js');
-        showStatus(entryPoint)
-        const logger = vscode.window.createOutputChannel('socket-security', {
-            log: true
-        });
-        // logger.info(JSON.stringify(process.execPath), JSON.stringify(entryPoint), 'report', 'create', '--json', JSON.stringify(workspaceFolderURI.fsPath))
         showStatus('Creating Socket Report...')
         const child = child_process.spawn(
             process.execPath,
@@ -216,11 +197,6 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         const stderr = text(child.stdout);
         try {
             const [exitCode] = await once(child, 'exit');
-            logger.info('Unable to run socket CLI', {
-                exitCode,
-                stdout: await stdout,
-                stderr: await stderr
-            })
             if (exitCode !== 0) {
                 showErrorStatus((await stderr) || 'Failed to run socket reporter child process');
                 return;

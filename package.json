@@ -67,7 +67,7 @@
     "scripts": {
         "vscode:prepublish": "npm run esbuild -- --minify",
         "esbuild-base": "esbuild --bundle --external:vscode --outdir=out/ --platform=node --sourcemap",
-        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts && npm run esbuild-base -- --format=esm --out-extension:.js=.mjs cli='vendor/lib/node_modules/@socketsecurity/cli/cli.js'",
+        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",

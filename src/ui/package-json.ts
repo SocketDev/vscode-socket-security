@@ -38,11 +38,13 @@ export function provideCodeActions(document: vscode.TextDocument, range: vscode.
     let actions = []
     for (const diag of context.diagnostics) {
         if (diag.source === DIAGNOSTIC_SOURCE_STR) {
-            const action = new vscode.CodeAction(`Ignore all ${diag.code} issues`, vscode.CodeActionKind.QuickFix)
+            const [type] = String(diag.code).split(/,/);
+            const title = `Ignore all ${JSON.stringify(type)} type issues`;
+            const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix)
             action.command = {
                 command: `${EXTENSION_PREFIX}.ignoreIssueType`,
-                title: `Ignore all ${diag.code} issues`,
-                arguments: [document.uri, diag.code]
+                title,
+                arguments: [document.uri, type]
             }
             action.diagnostics = [diag]
             action.isPreferred = false
