@@ -29,7 +29,7 @@ jobs:
           fi
 
   deploy:
-    needs: [ release-mode ]
+    needs: [ releaseMode ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
