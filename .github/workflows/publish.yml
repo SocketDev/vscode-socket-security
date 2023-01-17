@@ -31,9 +31,9 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v1
         id: publishToOpenVSX
         with:
-          dryRun: ${{ jobs.releaseMode.outputs.dryRun }}
+          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease: ${{ jobs.releaseMode.outputs.preRelease }}
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
       - name: Publish to Visual Studio Marketplace
         uses: HaaLeo/publish-vscode-extension@v1
         with:
@@ -44,6 +44,6 @@ jobs:
           registryUrl: https://marketplace.visualstudio.com
       - name: Github Release
         uses: softprops/action-gh-release@v1
-        if: ${{ jobs.releaseMode.outputs.dryRun != true }}
+        if: ${{ steps.releaseMode.outputs.dryRun != true }}
         with:
           files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
