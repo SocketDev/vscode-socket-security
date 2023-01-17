@@ -6,11 +6,8 @@ on:
 
 name: Deploy Extension
 jobs:
-  releaseMode:
+  deploy:
     runs-on: ubuntu-latest
-    outputs:
-      dryRun: ${{ steps.calc.outputs.dryRun }}
-      preRelease: ${{ steps.calc.outputs.preRelease }}
     steps:
       - name: Check for DryRun and Prerelease
         id: calc
@@ -27,11 +24,6 @@ jobs:
           else
             echo "preRelease=false" >> $GITHUB_OUTPUT;
           fi
-
-  deploy:
-    needs: [ releaseMode ]
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
       - run: npm ci
