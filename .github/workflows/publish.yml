@@ -13,6 +13,7 @@ jobs:
       - run: npm ci
       - name: Publish to Open VSX Registry
         uses: HaaLeo/publish-vscode-extension@v1
+        id: publishToOpenVSX
         with:
           dryRun: true
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
@@ -21,6 +22,11 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v1
         with:
           dryRun: true
+          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          registryUrl: https://marketplace.visualstudio.com
           preRelease: true
+          registryUrl: https://marketplace.visualstudio.com
+      - name: Github Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
