@@ -2,6 +2,7 @@ on:
   push:
     tags:
       - "release/[0-9]+.[0-9]+.[0-9]+"
+      - "prerelease/[0-9]+.[0-9]+.[0-9]+"
 
 name: Deploy Extension
 jobs:
@@ -15,18 +16,21 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v1
         id: publishToOpenVSX
         with:
-          dryRun: true
+          dryRun: ${{ secrets.DRY_RUN }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease: true
+          preRelease:
+            if: 
+              then:
       - name: Publish to Visual Studio Marketplace
         uses: HaaLeo/publish-vscode-extension@v1
         with:
-          dryRun: true
+          dryRun:: ${{ secrets.DRY_RUN }}
           extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: true
+          preRelease: false
           registryUrl: https://marketplace.visualstudio.com
       - name: Github Release
         uses: softprops/action-gh-release@v1
+        if: secrets.DRY_RUN != 'true'
         with:
           files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
