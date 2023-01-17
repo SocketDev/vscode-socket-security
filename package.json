@@ -79,6 +79,7 @@
         "acorn": "^8.8.1",
         "acorn-walk": "^8.2.0",
         "ast-types": "^0.14.2",
+        "ini": "^3.0.1",
         "json-to-ast": "^2.1.0",
         "octokit": "^2.0.10",
         "safe-stable-stringify": "^2.4.1",
