@@ -14,11 +14,7 @@ jobs:
         # perform secret check & put boolean result as an output
         shell: bash
         run: |
-          if [ "${{ secrets.DRY_RUN }}" == 'true' ]; then
-            echo "dryRun=true" >> $GITHUB_OUTPUT;
-          else
-            echo "dryRun=false" >> $GITHUB_OUTPUT;
-          fi
+          echo "dryRun=false" >> $GITHUB_OUTPUT;
           if [[ "${{ github.ref }}" = "refs/tags/prerelease"* ]]; then
             echo "preRelease=true" >> $GITHUB_OUTPUT;
           else
