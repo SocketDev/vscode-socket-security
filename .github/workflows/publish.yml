@@ -43,4 +43,4 @@ jobs:
         if: ${{ steps.releaseMode.outputs.dryRun }} != true
         with:
           files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
-          prerelease: ${{ steps.releaseMode.outputs.preRelease }} != true
+          prerelease: ${{ steps.releaseMode.outputs.preRelease }} == true
