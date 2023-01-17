@@ -17,12 +17,12 @@ jobs:
         # perform secret check & put boolean result as an output
         shell: bash
         run: |
-          if [ "${{ secrets.DRYRUN }}" == 'true' ]; then
+          if [ "${{ secrets.DRY_RUN }}" == 'true' ]; then
             echo "dryRun=true" >> $GITHUB_OUTPUT;
           else
             echo "dryRun=false" >> $GITHUB_OUTPUT;
           fi
-          if [ "${{ github.ref }}" == refs/tags/prerelease* ]; then
+          if [[ "${{ github.ref }}" = "refs/tags/prerelease"* ]]; then
             echo "preRelease=true" >> $GITHUB_OUTPUT;
           else
             echo "preRelease=false" >> $GITHUB_OUTPUT;
