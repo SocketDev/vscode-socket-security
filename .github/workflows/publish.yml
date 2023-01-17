@@ -6,7 +6,30 @@ on:
 
 name: Deploy Extension
 jobs:
+  releaseMode:
+    runs-on: ubuntu-latest
+    outputs:
+      dryRun: ${{ steps.calc.outputs.dryRun }}
+      preRelease: ${{ steps.calc.outputs.preRelease }}
+    steps:
+      - name: Check for DryRun and Prerelease
+        id: calc
+        # perform secret check & put boolean result as an output
+        shell: bash
+        run: |
+          if [ "${{ secrets.DRYRUN }}" == 'true' ]; then
+            echo "dryRun=true" >> $GITHUB_OUTPUT;
+          else
+            echo "dryRun=false" >> $GITHUB_OUTPUT;
+          fi
+          if [ "${{ github.ref }}" == refs/tags/prerelease* ]; then
+            echo "preRelease=true" >> $GITHUB_OUTPUT;
+          else
+            echo "preRelease=false" >> $GITHUB_OUTPUT;
+          fi
+
   deploy:
+    needs: [ release-mode ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -16,21 +39,20 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v1
         id: publishToOpenVSX
         with:
-          dryRun: ${{ secrets.DRY_RUN }}
+          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease:
-            if: 
-              then:
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
       - name: Publish to Visual Studio Marketplace
         uses: HaaLeo/publish-vscode-extension@v1
         with:
-          dryRun:: ${{ secrets.DRY_RUN }}
+          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: false
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
           registryUrl: https://marketplace.visualstudio.com
       - name: Github Release
         uses: softprops/action-gh-release@v1
-        if: ${{ secrets.DRY_RUN != 'true' }}
+        input
+        if: ${{ steps.releaseMode.outputs.dryRun != true }}
         with:
           files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
