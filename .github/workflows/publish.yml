@@ -31,6 +31,6 @@ jobs:
           registryUrl: https://marketplace.visualstudio.com
       - name: Github Release
         uses: softprops/action-gh-release@v1
-        if: secrets.DRY_RUN != 'true'
+        if: ${{ secrets.DRY_RUN }} != 'true'
         with:
           files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
