@@ -40,7 +40,7 @@ jobs:
           dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: ${{ jobs.releaseMode.outputs.preRelease }}
+          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
           registryUrl: https://marketplace.visualstudio.com
       - name: Github Release
         uses: softprops/action-gh-release@v1
