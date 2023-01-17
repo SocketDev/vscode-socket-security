@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check for DryRun and Prerelease
-        id: calc
+        id: releaseMode
         # perform secret check & put boolean result as an output
         shell: bash
         run: |
