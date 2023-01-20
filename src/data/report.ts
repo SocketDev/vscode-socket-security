@@ -101,7 +101,6 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         }
     })
 
-
     const watcher = vscode.workspace.createFileSystemWatcher('package{.json}');
     addDisposablesTo(
         disposables,
@@ -122,11 +121,17 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
     function pkgJSONSrcToStableStringKey(str: string): PackageJSONStableString {
         const {
             dependencies,
-            devDependencies
+            devDependencies,
+            peerDependencies,
+            bundledDependencies,
+            optionalDependencies
         } = JSON.parse(str);
         return (stableStringify.stringify({
             dependencies,
-            devDependencies
+            devDependencies,
+            peerDependencies,
+            bundledDependencies,
+            optionalDependencies
         }) ?? '' ) as PackageJSONStableString;
     }
     const knownPkgFiles: Map<string, {

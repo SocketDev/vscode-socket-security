@@ -34,7 +34,7 @@ export async function activate(context: ExtensionContext) {
     ])
     javascriptFiles.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
-    const pkgWatcher = vscode.workspace.createFileSystemWatcher('**/package.json');
+    const pkgWatcher = vscode.workspace.createFileSystemWatcher('**/package{,-lock}.json');
 
     context.subscriptions.push(
         diagnostics,

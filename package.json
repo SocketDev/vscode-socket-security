@@ -75,9 +75,9 @@
         "update-vendored": "npm --prefix=./vendor -g i '@socketsecurity/cli'"
     },
     "dependencies": {
+        "@babel/parser": "^7.20.7",
         "@socketsecurity/cli": "^0.3.0",
         "@socketsecurity/config": "^2.0.0",
-        "acorn": "^8.8.1",
         "acorn-walk": "^8.2.0",
         "ast-types": "^0.14.2",
         "ini": "^3.0.1",

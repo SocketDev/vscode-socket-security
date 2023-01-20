@@ -4,10 +4,18 @@ type ExternalRef = {
     range: vscode.Range,
     prioritize?: boolean
 }
-import * as acorn from 'acorn'
-import * as acornTypes from "ast-types";
+import * as parser from '@babel/parser'
+import * as astTypes from "ast-types";
 import path from 'node:path';
 import jsonToAST from 'json-to-ast';
+
+export const SUPPORTED_LANGUAGE_IDS = [
+    'javascript',
+    'javascriptreact',
+    'typescript',
+    'typescriptreact'
+];
+
 function getPackageNameFromSpecifier(name: string): string {
     return (
         name.startsWith('@') ?
@@ -25,17 +33,22 @@ function getPackageNameFromVersionRange(name: string): string {
 export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> {
     const src = doc.getText();
     const results: Array<ExternalRef> = []
-    if (doc.languageId === 'javascript') {
-        const ast = acorn.parse(
+    if (SUPPORTED_LANGUAGE_IDS.includes(doc.languageId)) {
+        const ast = parser.parse(
             src,
             {
-                ecmaVersion: 'latest',
+                allowAwaitOutsideFunction: true,
                 allowImportExportEverywhere: true,
                 allowReturnOutsideFunction: true,
-                locations: true
+                errorRecovery: true,
+                plugins: [
+                    'jsx',
+                    'typescript',
+                    'decorators'
+                ],
             }
         )
-        function addResult(node: acornTypes.namedTypes.Node, specifier: string) {
+        function addResult(node: astTypes.namedTypes.Node, specifier: string) {
             if (/^[\.\/]/u.test(specifier)) {
                 return
             }
@@ -65,8 +78,8 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
          *
          * @returns a function to compute the value (may be non-trivial cost)
          */
-        function constFor(node: acornTypes.ASTNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
-            if (acornTypes.namedTypes.TemplateLiteral.check(node)) {
+        function constFor(node: astTypes.ASTNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
+            if (astTypes.namedTypes.TemplateLiteral.check(node)) {
                 if (node.quasis.length === 1) {
                     return () => node.quasis[0].value.cooked
                 } else {
@@ -87,16 +100,16 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                         return `${result}${node.quasis[i].value.cooked}`
                     }
                 }
-            } else if (acornTypes.namedTypes.BigIntLiteral.check(node)) {
+            } else if (astTypes.namedTypes.BigIntLiteral.check(node)) {
                 return () => BigInt(node.value)
-            } else if (acornTypes.namedTypes.Literal.check(node)) {
+            } else if (astTypes.namedTypes.Literal.check(node)) {
                 const { value } = node
                 if (value && typeof value === 'object') {
                     // regexp literal
                     return kDYNAMIC_VALUE
                 }
                 return () => value
-            } else if (acornTypes.namedTypes.BinaryExpression.check(node)) {
+            } else if (astTypes.namedTypes.BinaryExpression.check(node)) {
                 const left = constFor(node.left)
                 if (left === kDYNAMIC_VALUE) {
                     return kDYNAMIC_VALUE
@@ -148,7 +161,7 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                     // @ts-expect-error
                     '**': () => left() ** right()
                 }[operator]
-            } else if (acornTypes.namedTypes.UnaryExpression.check(node)) {
+            } else if (astTypes.namedTypes.UnaryExpression.check(node)) {
                 const arg = constFor(node.argument)
                 if (arg === kDYNAMIC_VALUE) {
                     return kDYNAMIC_VALUE
@@ -170,9 +183,9 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                     '~': () => ~arg(),
                     'typeof': () => typeof arg(),
                 }[operator]
-            } else if (acornTypes.namedTypes.ParenthesizedExpression.check(node)) {
+            } else if (astTypes.namedTypes.ParenthesizedExpression.check(node)) {
                 return constFor(node.expression)
-            } else if (acornTypes.namedTypes.AwaitExpression.check(node)) {
+            } else if (astTypes.namedTypes.AwaitExpression.check(node)) {
                 if (!node.argument) {
                     // WTF
                     return kDYNAMIC_VALUE
@@ -185,7 +198,7 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
             }
             return kDYNAMIC_VALUE
         }
-        acornTypes.visit(ast, {
+        astTypes.visit(ast, {
             visitImportDeclaration(path) {
                 addResult(path.node.source, `${path.node.source.value}`)
                 return false
@@ -202,7 +215,13 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                 const { node } = path
                 const { callee } = node
                 if (node.arguments.length > 0) {
-                    if (acornTypes.namedTypes.Identifier.check(callee) && callee.name === 'require') {
+                    if (astTypes.namedTypes.Identifier.check(callee) && callee.name === 'require') {
+                        const { arguments: [firstArg] } = node
+                        let constantArg = constFor(firstArg)
+                        if (constantArg !== kDYNAMIC_VALUE) {
+                            addResult(node, `${constantArg()}`)
+                        }
+                    } else if (astTypes.namedTypes.Import.check(callee)) {
                         const { arguments: [firstArg] } = node
                         let constantArg = constFor(firstArg)
                         if (constantArg !== kDYNAMIC_VALUE) {

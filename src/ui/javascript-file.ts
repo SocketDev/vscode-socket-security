@@ -5,7 +5,7 @@ import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../util';
 import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
-import { parseExternals } from './parse-externals';
+import { parseExternals, SUPPORTED_LANGUAGE_IDS } from './parse-externals';
 
 // @ts-expect-error the types are wrong
 let isBuiltin: (name: string) => boolean = module.isBuiltin ||
@@ -189,7 +189,7 @@ ${relevantIssues.sort((a, b) => sortIssues({
             })
         }
     }
-    context.subscriptions.push(vscode.languages.registerHoverProvider('javascript', {
+    const hoverProvider: vscode.HoverProvider = {
         provideHover(document, position, token) {
             const socketReportData = reports.effectiveReportForUri(document.uri)
             const socketReport = socketReportData.data
@@ -222,7 +222,10 @@ ${relevantIssues.sort((a, b) => sortIssues({
             }
             return undefined
         }
-    }));
+    };
+    for (const languageId of SUPPORTED_LANGUAGE_IDS) {
+        context.subscriptions.push(vscode.languages.registerHoverProvider(languageId, hoverProvider));
+    }
     let currentDecorateEditors: AbortController = new AbortController()
     editorConfig.onDependentConfig(
         [
@@ -233,7 +236,7 @@ ${relevantIssues.sort((a, b) => sortIssues({
         }
     );
     function decorateEditor(e: vscode.TextEditor, abortSignal: AbortSignal) {
-        if (e.document.languageId !== 'javascript') {
+        if (!SUPPORTED_LANGUAGE_IDS.includes(e.document.languageId)) {
             return
         }
         const informativeDecorations: Array<vscode.DecorationOptions> = [];
