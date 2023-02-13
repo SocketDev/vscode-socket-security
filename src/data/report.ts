@@ -216,7 +216,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         try {
             const [exitCode] = await once(child, 'exit');
             if (exitCode !== 0) {
-                showErrorStatus((await stderr) || 'Failed to run socket reporter child process');
+                showErrorStatus((await stderr) || `Failed to run socket reporter child process (exit code ${exitCode})`);
                 return;
             }
         } catch (e) {
