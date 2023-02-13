@@ -143,6 +143,9 @@ export function activate(
             if (!socketReport) return
             let hovers: Array<vscode.Hover> = []
             const externals = parseExternals(doc)
+            if (!externals) {
+                return
+            }
             const issues = radixMergeReportIssues(socketReport)
             for (const {name, range} of externals) {
                 const pkgIssues = issues.get(name)
@@ -269,7 +272,11 @@ ${issues.sort((a, b) => sortIssues({
         e.setDecorations(errorDecoration, errorDecorations);
         e.setDecorations(warningDecoration, warningDecorations);
 
-        for (const {name, range} of parseExternals(e.document)) {
+        const externals = parseExternals(e.document)
+        if (!externals) {
+            return
+        }
+        for (const {name, range} of externals) {
             if (isBuiltin(name)) {
                 const deco: vscode.DecorationOptions = {
                     range,

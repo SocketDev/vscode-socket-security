@@ -174,7 +174,12 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             let needRun = false
             for (const file of files) {
                 let existing = knownPkgFiles.get(file.fsPath)
-                const cacheKey = pkgJSONSrcToStableStringKey(file.str)
+                let cacheKey;
+                try {
+                    cacheKey = pkgJSONSrcToStableStringKey(file.str)
+                } catch {
+                    continue
+                }
                 if (!existing) {
                     needRun = true
                     existing = {

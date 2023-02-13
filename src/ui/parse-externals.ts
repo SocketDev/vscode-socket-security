@@ -31,24 +31,29 @@ function getPackageNameFromVersionRange(name: string): string {
         name.split('@', 2)
     ).join('@');
 }
-export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> {
+export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> | null {
     const src = doc.getText();
     const results: Array<ExternalRef> = []
     if (SUPPORTED_LANGUAGE_IDS.includes(doc.languageId)) {
-        const ast = parser.parse(
-            src,
-            {
-                allowAwaitOutsideFunction: true,
-                allowImportExportEverywhere: true,
-                allowReturnOutsideFunction: true,
-                errorRecovery: true,
-                plugins: [
-                    'jsx',
-                    'typescript',
-                    'decorators'
-                ],
-            }
-        )
+        let ast
+        try {
+            ast = parser.parse(
+                src,
+                {
+                    allowAwaitOutsideFunction: true,
+                    allowImportExportEverywhere: true,
+                    allowReturnOutsideFunction: true,
+                    errorRecovery: true,
+                    plugins: [
+                        'jsx',
+                        'typescript',
+                        'decorators'
+                    ],
+                }
+            )
+        } catch {
+            return null
+        }
         function addResult(node: astTypes.namedTypes.Node, specifier: string) {
             if (/^[\.\/]/u.test(specifier)) {
                 return

@@ -85,6 +85,9 @@ export async function activate(context: ExtensionContext) {
     )
     function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
         const externals = parseExternals(doc)
+        if (!externals) {
+            return
+        }
         const issuesForSource = radixMergeReportIssues(report)
         let ranges: Record<string, Array<vscode.Range>> = Object.create(null);
         let prioritizedRanges: Record<string, { range: vscode.Range, prioritize: boolean }> = Object.create(null)
