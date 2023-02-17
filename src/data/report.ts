@@ -164,6 +164,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
                         ({uri, body}) => {
                             return {
                                 fsPath: uri.fsPath,
+                                uri,
                                 str: Buffer.from(body).toString()
                             }
                         }
@@ -201,7 +202,10 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             process.execPath,
             [
                 entryPoint,
-                'report', 'create', '--json', workspaceFolderURI.fsPath
+                'report', 'create', '--json', ...files.map(file => {
+                    const joined = vscode.Uri.joinPath(file.uri, '..')
+                    return joined.fsPath
+                })
             ],
             {
                 cwd: workspaceFolderURI.fsPath,
@@ -212,7 +216,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             }
         )
         const stdout = text(child.stdout);
-        const stderr = text(child.stdout);
+        const stderr = text(child.stderr);
         try {
             const [exitCode] = await once(child, 'exit');
             if (exitCode !== 0) {
