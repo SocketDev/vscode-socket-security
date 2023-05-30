@@ -5,6 +5,7 @@ import { FormDataEncoder } from 'form-data-encoder';
 import type { IncomingMessage } from 'node:http';
 import * as https from 'node:https';
 import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
 import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from '../util';
@@ -121,14 +122,14 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
     );
 
     type PackageRootCacheKey = string & { _tag: 'PackageRootCacheKey' }
-    function pkgJSONSrcToCacheKey(str: string): PackageRootCacheKey {
+    function pkgJSONSrcToCacheKey(src: Buffer): PackageRootCacheKey {
         const {
             dependencies,
             devDependencies,
             peerDependencies,
             bundledDependencies,
             optionalDependencies
-        } = JSON.parse(str);
+        } = JSON.parse(src.toString());
         return (stableStringify.stringify({
             dependencies,
             devDependencies,
@@ -136,6 +137,9 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             bundledDependencies,
             optionalDependencies
         }) ?? '' ) as PackageRootCacheKey;
+    }
+    function hashCacheKey(src: Buffer): PackageRootCacheKey {
+        return createHash('md5').update(src).digest('hex') as PackageRootCacheKey;
     }
 
     const knownPkgFiles: Map<string, {
@@ -201,7 +205,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             let cacheKey: PackageRootCacheKey | null = null;
             try {
                 cacheKey = getCacheKey(body, uri.fsPath)
-            } catch (err) {
+            } catch (e) {
                 // failed to load - empty cacheKey
             }
             return {
@@ -234,16 +238,26 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             pkgJSONFiles,
             ...allPyFiles
         ] = await Promise.all([
-            findWorkspaceFiles('**/package.json', src => pkgJSONSrcToCacheKey(src.toString())),
+            findWorkspaceFiles('**/package.json', pkgJSONSrcToCacheKey),
             ...Object.values(globPatterns.pypi).map(p =>
                 // TODO: better python cache key generation
-                findWorkspaceFiles(`**/${p.pattern}`, src => src.toString() as PackageRootCacheKey)
+                findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey)
             )
         ])
-        const rootFiles = [...pkgJSONFiles, ...allPyFiles.flat()]
+
+        const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
+        const npmLockFilePatterns = Object.keys(globPatterns.npm)
+            .filter(name => name !== 'packagejson')
+            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm])
+
+        const npmLockFiles = (await Promise.all(
+            npmLockFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))
+        )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
+
+        const files = [...pkgJSONFiles, ...npmLockFiles, ...allPyFiles.flat()]
 
         let needRun = false
-        for (const file of rootFiles) {
+        for (const file of files) {
             if (file.cacheKey === null) continue;
             let existing = knownPkgFiles.get(file.uri.fsPath)
             if (!existing) {
@@ -257,44 +271,40 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         }
         if (!force && !needRun) return
 
-        const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
-        const npmLockfilePatterns = Object.keys(globPatterns.npm)
-            .filter(name => name !== 'packagejson')
-            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm])
+        let id: string;
 
-        const lockFiles = (await Promise.all(
-            npmLockfilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, () => null))
-        )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
-
-        const files = [...rootFiles, ...lockFiles]
-        showStatus('Creating Socket Report...')
-
-        const form = new FormData();
-        for (const file of files) {
-            const filepath = workspace.asRelativePath(file.uri)
-            const fileObj = new File([file.body], filepath)
-            form.set(filepath, fileObj);
-        }
-        const reportBody = new FormDataEncoder(form);
-
-        const req = https.request(`https://api.socket.dev/v0/report/upload`, {
-            method: 'PUT',
-            headers: {
-                ...reportBody.headers,
-                'Authorization': authorizationHeaderValue,
+        try {
+            showStatus('Creating Socket Report...')
+            const form = new FormData();
+            for (const file of files) {
+                const filepath = workspace.asRelativePath(file.uri)
+                const fileObj = new File([file.body], filepath)
+                form.set(filepath, fileObj);
             }
-        });
-        Readable.from(reportBody).pipe(req);
+            const reportBody = new FormDataEncoder(form);
 
-        const [res] = (await once(req, 'response')) as [IncomingMessage]
-        const reportInfo = JSON.parse(await text(res));
-        if (res.statusCode != 200) {
-            showErrorStatus(reportInfo.error.message);
-            return;
+            const req = https.request(`https://api.socket.dev/v0/report/upload`, {
+                method: 'PUT',
+                headers: {
+                    ...reportBody.headers,
+                    'Authorization': authorizationHeaderValue,
+                }
+            });
+            Readable.from(reportBody).pipe(req);
+    
+            const [res] = (await once(req, 'response')) as [IncomingMessage]
+            const result = JSON.parse(await text(res));
+            if (res.statusCode != 200) {
+                throw new Error(result.error!.message)
+            }
+            id = result.id;
+        } catch (e) {
+            showErrorStatus(e);
+            throw e;
         }
+
         try {
             showStatus('Running Socket Report...')
-            const { id } = reportInfo;
             const MAX_ATTEMPTS = 10
             let attempts = 0
             while (attempts++ < MAX_ATTEMPTS) {
