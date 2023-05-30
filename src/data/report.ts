@@ -232,33 +232,30 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
 
         const [
             pkgJSONFiles,
-            pyFiles
+            ...allPyFiles
         ] = await Promise.all([
             findWorkspaceFiles('**/package.json', src => pkgJSONSrcToCacheKey(src.toString())),
-            findWorkspaceFiles(
-                `**/{${Object.values(globPatterns.pypi).map(v => v.pattern).join(',')}}`,
+            ...Object.values(globPatterns.pypi).map(p =>
                 // TODO: better python cache key generation
-                src => src.toString() as PackageRootCacheKey
-            ),
+                findWorkspaceFiles(`**/${p.pattern}`, src => src.toString() as PackageRootCacheKey)
+            )
         ])
-        const rootFiles = [...pkgJSONFiles, ...pyFiles]
+        const rootFiles = [...pkgJSONFiles, ...allPyFiles.flat()]
 
-        if (!force) {
-            let needRun = false
-            for (const file of rootFiles) {
-                if (file.cacheKey === null) continue;
-                let existing = knownPkgFiles.get(file.uri.fsPath)
-                if (!existing) {
-                    needRun = true
-                    existing = { cacheKey: file.cacheKey }
-                    knownPkgFiles.set(file.uri.fsPath, existing)
-                }
-                if (existing.cacheKey !== file.cacheKey) {
-                    needRun = true
-                }
+        let needRun = false
+        for (const file of rootFiles) {
+            if (file.cacheKey === null) continue;
+            let existing = knownPkgFiles.get(file.uri.fsPath)
+            if (!existing) {
+                needRun = true
+                existing = { cacheKey: file.cacheKey }
+                knownPkgFiles.set(file.uri.fsPath, existing)
             }
-            if (!needRun) return
+            if (existing.cacheKey !== file.cacheKey) {
+                needRun = true
+            }
         }
+        if (!force && !needRun) return
 
         const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
         const npmLockfilePatterns = Object.keys(globPatterns.npm)
