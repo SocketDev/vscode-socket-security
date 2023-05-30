@@ -260,9 +260,11 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
         const npmLockfilePatterns = Object.keys(globPatterns.npm)
             .filter(name => name !== 'packagejson')
-            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm].pattern)
-        const lockFiles = (await findWorkspaceFiles(`**/{${npmLockfilePatterns.join(',')}}`, () => null))
-            .filter(file => pkgJSONParents.has(uriParent(file.uri)))
+            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm])
+
+        const lockFiles = (await Promise.all(
+            npmLockfilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, () => null))
+        )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
 
         const files = [...rootFiles, ...lockFiles]
         showStatus('Creating Socket Report...')
