@@ -139,62 +139,15 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         }) ?? '' ) as PackageRootCacheKey;
     }
     function hashCacheKey(src: Buffer): PackageRootCacheKey {
-        return createHash('md5').update(src).digest('hex') as PackageRootCacheKey;
+        return createHash('sha256').update(src).digest('hex') as PackageRootCacheKey;
     }
 
     const knownPkgFiles: Map<string, {
         cacheKey: PackageRootCacheKey,
     }> = new Map()
 
-    // TODO: get these patterns from API
-    const globPatterns = {
-        general: {
-            readme: {
-                pattern: '*readme*'
-            },
-            notice: {
-                pattern: '*notice*'
-            },
-            license: {
-                pattern: '{licen{s,c}e{,-*},copying}'
-            }
-        },
-        npm: {
-            packagejson: {
-                pattern: 'package.json'
-            },
-            packagelockjson: {
-                pattern: 'package-lock.json'
-            },
-            npmshrinkwrap: {
-                pattern: 'npm-shrinkwrap.json'
-            },
-            yarnlock: {
-                pattern: 'yarn.lock'
-            },
-            pnpmlock: {
-                pattern: 'pnpm-lock.yaml'
-            },
-            pnpmworkspace: {
-                pattern: 'pnpm-workspace.yaml'
-            }
-        },
-        pypi: {
-            pipfile: {
-                pattern: 'pipfile'
-            },
-            pyproject: {
-                pattern: 'pyproject.toml'
-            },
-            requirements: {
-                pattern:
-                    '{*requirements.txt,requirements/*.txt,requirements-*.txt,requirements.frozen}'
-            },
-            setuppy: {
-                pattern: 'setup.py'
-            }
-        }
-    } as const
+    type GlobPatterns = Record<string, Record<string, { pattern: string }>>
+    let globPatternsPromise: Promise<GlobPatterns>
 
     async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => PackageRootCacheKey | null) {
         const uris = await workspace.findFiles(pattern, '**/{node_modules,.git}/**');
@@ -234,6 +187,31 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             return
         }
 
+        if (!globPatternsPromise) {
+            const req = https.get(`https://api.socket.dev/v0/report/supported`, {
+                headers: {
+                    'Authorization': authorizationHeaderValue
+                }
+            })
+            req.end()
+            globPatternsPromise = (once(req, 'response') as Promise<[IncomingMessage]>)
+                .then(async ([res]) => {
+                    const result = JSON.parse(await text(res))
+                    if (res.statusCode !== 200) {
+                        throw new Error(result.error.message)
+                    }
+                    return result
+                })
+        }
+
+        let globPatterns: GlobPatterns
+        try {
+            globPatterns = await globPatternsPromise
+        } catch (e) {
+            showErrorStatus(e);
+            throw e;
+        }
+
         const [
             pkgJSONFiles,
             ...allPyFiles
@@ -258,7 +236,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
 
         let needRun = false
         for (const file of files) {
-            if (file.cacheKey === null) continue;
+            if (file.cacheKey === null) continue
             let existing = knownPkgFiles.get(file.uri.fsPath)
             if (!existing) {
                 needRun = true
@@ -294,8 +272,8 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
     
             const [res] = (await once(req, 'response')) as [IncomingMessage]
             const result = JSON.parse(await text(res));
-            if (res.statusCode != 200) {
-                throw new Error(result.error!.message)
+            if (res.statusCode !== 200) {
+                throw new Error(result.error.message)
             }
             id = result.id;
         } catch (e) {
