@@ -4,13 +4,13 @@
 import * as vscode from 'vscode';
 import { ExtensionContext, languages, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
-import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
+import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/js/package-json';
 import * as report from './data/report'
 import { radixMergeReportIssues, SocketReport } from './data/report';
 import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
-import * as javascriptFiles from './ui/javascript-file'
+import * as javascriptFiles from './ui/js/javascript-file'
 import { parseExternals } from './ui/parse-externals';
 import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
 

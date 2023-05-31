@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import jsonToAST from 'json-to-ast'
-import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from '../util';
+import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from '../../util';
 
 export function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
     const packageJSONSource = document.getText()
@@ -9,7 +9,7 @@ export function provideCodeLenses(document: vscode.TextDocument, token: vscode.C
     if (ast.type === 'Object') {
         const child: jsonToAST.PropertyNode | undefined = ast.children.find(
             child => {
-                return child.key.value === 'dependencies' || child.key.value === 'devDevdependencies'
+                return child.key.value === 'dependencies' || child.key.value === 'devDependencies'
             }
         )
         if (child) {

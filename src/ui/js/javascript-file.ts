@@ -1,11 +1,11 @@
 import { SocketYml } from '@socketsecurity/config';
 import * as vscode from 'vscode'
-import { radixMergeReportIssues, SocketReport } from '../data/report';
-import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../util';
+import { radixMergeReportIssues, SocketReport } from '../../data/report';
+import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../../util';
 import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
-import { parseExternals, SUPPORTED_LANGUAGE_IDS } from './parse-externals';
+import { parseExternals } from '../parse-externals';
 
 // @ts-expect-error the types are wrong
 let isBuiltin: (name: string) => boolean = module.isBuiltin ||
@@ -16,12 +16,19 @@ let isBuiltin: (name: string) => boolean = module.isBuiltin ||
         };
     })(module.builtinModules);
 
+export const SUPPORTED_JS_LANGUAGE_IDS = [
+    'javascript',
+    'javascriptreact',
+    'typescript',
+    'typescriptreact'
+];
+
 // TODO: cache by detecting open editors and closing
 export function activate(
     context: vscode.ExtensionContext,
-    reports: ReturnType<(typeof import('../data/report'))['activate']>,
-    socketConfig: Awaited<ReturnType<(typeof import('../data/socket-yaml'))['activate']>>,
-    editorConfig: ReturnType<typeof import('../data/editor-config')['activate']>
+    reports: ReturnType<(typeof import('../../data/report'))['activate']>,
+    socketConfig: Awaited<ReturnType<(typeof import('../../data/socket-yaml'))['activate']>>,
+    editorConfig: ReturnType<typeof import('../../data/editor-config')['activate']>
 ) {
     let errorDecoration = vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
@@ -248,7 +255,7 @@ ${issues.sort((a, b) => sortIssues({
             return undefined
         }
     };
-    for (const languageId of SUPPORTED_LANGUAGE_IDS) {
+    for (const languageId of SUPPORTED_JS_LANGUAGE_IDS) {
         context.subscriptions.push(vscode.languages.registerHoverProvider(languageId, hoverProvider));
     }
     let currentDecorateEditors: AbortController = new AbortController()
@@ -261,7 +268,7 @@ ${issues.sort((a, b) => sortIssues({
         }
     );
     function decorateEditor(e: vscode.TextEditor, abortSignal: AbortSignal) {
-        if (!SUPPORTED_LANGUAGE_IDS.includes(e.document.languageId)) {
+        if (!SUPPORTED_JS_LANGUAGE_IDS.includes(e.document.languageId)) {
             return
         }
         const informativeDecorations: Array<vscode.DecorationOptions> = [];

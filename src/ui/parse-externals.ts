@@ -1,21 +1,16 @@
 import * as vscode from 'vscode';
 import * as parser from '@babel/parser'
-import * as astTypes from "ast-types";
+import * as astTypes from 'ast-types';
 import path from 'node:path';
 import jsonToAST from 'json-to-ast';
+
+import { SUPPORTED_JS_LANGUAGE_IDS } from './js/javascript-file';
 
 type ExternalRef = {
     name: string,
     range: vscode.Range,
     prioritize?: boolean
 }
-
-export const SUPPORTED_LANGUAGE_IDS = [
-    'javascript',
-    'javascriptreact',
-    'typescript',
-    'typescriptreact'
-];
 
 function getPackageNameFromSpecifier(name: string): string {
     return (
@@ -34,7 +29,7 @@ function getPackageNameFromVersionRange(name: string): string {
 export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> | null {
     const src = doc.getText();
     const results: Array<ExternalRef> = []
-    if (SUPPORTED_LANGUAGE_IDS.includes(doc.languageId)) {
+    if (SUPPORTED_JS_LANGUAGE_IDS.includes(doc.languageId)) {
         let ast
         try {
             ast = parser.parse(
@@ -44,11 +39,15 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                     allowImportExportEverywhere: true,
                     allowReturnOutsideFunction: true,
                     errorRecovery: true,
-                    plugins: [
+                    // tsx and ts parse generics differently
+                    plugins: doc.languageId.includes('react') ? [
                         'jsx',
                         'typescript',
                         'decorators'
-                    ],
+                    ] : [
+                        'typescript',
+                        'decorators'
+                    ]
                 }
             )
         } catch {
