@@ -39,12 +39,14 @@
     "main": "./out/main.js",
     "homepage": "https://socket.dev",
     "contributes": {
-        "commands": [{
-            "command": "socket-security.runReport",
-            "category": "Socket Security",
-            "title": "Run Report",
-            "enablement": "workspaceFolderCount >= 1"
-        }],
+        "commands": [
+            {
+                "command": "socket-security.runReport",
+                "category": "Socket Security",
+                "title": "Run Report",
+                "enablement": "workspaceFolderCount >= 1"
+            }
+        ],
         "configuration": {
             "title": "Socket Security",
             "properties": {
@@ -113,10 +115,11 @@
     },
     "dependencies": {
         "@babel/parser": "^7.20.7",
-        "@socketsecurity/cli": "^0.3.0",
         "@socketsecurity/config": "^2.0.0",
         "acorn-walk": "^8.2.0",
         "ast-types": "^0.14.2",
+        "form-data-encoder": "^3.0.0",
+        "formdata-node": "^5.0.1",
         "ini": "^3.0.1",
         "json-to-ast": "^2.1.0",
         "octokit": "^2.0.10",

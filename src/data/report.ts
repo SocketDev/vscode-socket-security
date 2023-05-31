@@ -1,11 +1,14 @@
 import * as vscode from "vscode";
-import child_process from 'node:child_process';
 import { once } from 'node:events';
-import type { IncomingMessage } from "node:http";
+import { FormData, File } from 'formdata-node';
+import { FormDataEncoder } from 'form-data-encoder';
+import type { IncomingMessage } from 'node:http';
 import * as https from 'node:https';
+import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
 import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
-import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
+import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from '../util';
 import * as stableStringify from 'safe-stable-stringify';
 import watchers from '../fs-watchers'
 
@@ -118,32 +121,62 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         })
     );
 
-    type PackageJSONStableString = string & { _tag: 'PackageJSONStableString' }
-    function pkgJSONSrcToStableStringKey(str: string): PackageJSONStableString {
+    type PackageRootCacheKey = string & { _tag: 'PackageRootCacheKey' }
+    function pkgJSONSrcToCacheKey(src: Buffer): PackageRootCacheKey {
         const {
             dependencies,
             devDependencies,
             peerDependencies,
             bundledDependencies,
             optionalDependencies
-        } = JSON.parse(str);
+        } = JSON.parse(src.toString());
         return (stableStringify.stringify({
             dependencies,
             devDependencies,
             peerDependencies,
             bundledDependencies,
             optionalDependencies
-        }) ?? '' ) as PackageJSONStableString;
+        }) ?? '' ) as PackageRootCacheKey;
     }
+    function hashCacheKey(src: Buffer): PackageRootCacheKey {
+        return createHash('sha256').update(src).digest('hex') as PackageRootCacheKey;
+    }
+
     const knownPkgFiles: Map<string, {
-        cacheKey: PackageJSONStableString,
-        src: string,
-        ast?: import('json-to-ast').ASTNode
+        cacheKey: PackageRootCacheKey,
     }> = new Map()
+
+    type GlobPatterns = Record<string, Record<string, { pattern: string }>>
+    let globPatternsPromise: Promise<GlobPatterns>
+
+    async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => PackageRootCacheKey | null) {
+        const uris = await workspace.findFiles(pattern, '**/{node_modules,.git}/**');
+
+        return Promise.all(uris.map(async uri => {
+            const raw = await workspace.fs.readFile(uri)
+            const body = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
+            let cacheKey: PackageRootCacheKey | null = null;
+            try {
+                cacheKey = getCacheKey(body, uri.fsPath)
+            } catch (e) {
+                // failed to load - empty cacheKey
+            }
+            return {
+                uri,
+                body,
+                cacheKey
+            }
+        }))
+    }
+
+    function uriParent(uri: vscode.Uri) {
+        return vscode.Uri.joinPath(uri, '..').fsPath;
+    }
+
     async function runReport(uri: vscode.Uri, force: boolean = false) {
         if (!force) {
             if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('reportsEnabled')) {
-                return;
+                return
             }
         }
         if (!apiKey) {
@@ -153,83 +186,103 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         if (!workspaceFolderURI) {
             return
         }
-        const files = await workspace.findFiles('**/package{.json}', '**/node_modules/**').then(fileUris => {
-            return Promise.all(
-                fileUris.map(async (uri) => {
-                    return {uri, body: await workspace.fs.readFile(uri)}
-                })
-            ).then(
-                (uriAndBuffers) =>
-                    uriAndBuffers.map(
-                        ({uri, body}) => {
-                            return {
-                                fsPath: uri.fsPath,
-                                uri,
-                                str: Buffer.from(body).toString()
-                            }
-                        }
-                    )
-            )
-        })
-        if (!force) {
-            let needRun = false
-            for (const file of files) {
-                let existing = knownPkgFiles.get(file.fsPath)
-                let cacheKey;
-                try {
-                    cacheKey = pkgJSONSrcToStableStringKey(file.str)
-                } catch {
-                    continue
+
+        if (!globPatternsPromise) {
+            const req = https.get(`https://api.socket.dev/v0/report/supported`, {
+                headers: {
+                    'Authorization': authorizationHeaderValue
                 }
-                if (!existing) {
-                    needRun = true
-                    existing = {
-                        cacheKey,
-                        src: file.str
+            })
+            req.end()
+            globPatternsPromise = (once(req, 'response') as Promise<[IncomingMessage]>)
+                .then(async ([res]) => {
+                    const result = JSON.parse(await text(res))
+                    if (res.statusCode !== 200) {
+                        throw new Error(result.error.message)
                     }
-                    knownPkgFiles.set(file.fsPath, existing)
-                }
-                if (existing.cacheKey !== cacheKey) {
-                    needRun = true
-                }
-            }
-            if (!needRun) return
-        }
-        showStatus('Running Socket Report...')
-        const entryPoint = context.asAbsolutePath('./vendor/lib/node_modules/@socketsecurity/cli/cli.js');
-        showStatus('Creating Socket Report...')
-        const child = child_process.spawn(
-            process.execPath,
-            [
-                entryPoint,
-                'report', 'create', '--json', ...files.map(file => {
-                    const joined = vscode.Uri.joinPath(file.uri, '..')
-                    return joined.fsPath
+                    return result
                 })
-            ],
-            {
-                cwd: workspaceFolderURI.fsPath,
-                env: {
-                    ...process.env,
-                    SOCKET_SECURITY_API_KEY: `${apiKey}`
-                }
-            }
-        )
-        const stdout = text(child.stdout);
-        const stderr = text(child.stderr);
+        }
+
+        let globPatterns: GlobPatterns
         try {
-            const [exitCode] = await once(child, 'exit');
-            if (exitCode !== 0) {
-                showErrorStatus((await stderr) || `Failed to run socket reporter child process (exit code ${exitCode})`);
-                return;
-            }
+            globPatterns = await globPatternsPromise
         } catch (e) {
-            showErrorStatus(e)
+            showErrorStatus(e);
             throw e;
         }
+
+        const [
+            pkgJSONFiles,
+            ...allPyFiles
+        ] = await Promise.all([
+            findWorkspaceFiles('**/package.json', pkgJSONSrcToCacheKey),
+            ...Object.values(globPatterns.pypi).map(p =>
+                // TODO: better python cache key generation
+                findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey)
+            )
+        ])
+
+        const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
+        const npmLockFilePatterns = Object.keys(globPatterns.npm)
+            .filter(name => name !== 'packagejson')
+            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm])
+
+        const npmLockFiles = (await Promise.all(
+            npmLockFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))
+        )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
+
+        const files = [...pkgJSONFiles, ...npmLockFiles, ...allPyFiles.flat()]
+
+        let needRun = false
+        for (const file of files) {
+            if (file.cacheKey === null) continue
+            let existing = knownPkgFiles.get(file.uri.fsPath)
+            if (!existing) {
+                needRun = true
+                existing = { cacheKey: file.cacheKey }
+                knownPkgFiles.set(file.uri.fsPath, existing)
+            }
+            if (existing.cacheKey !== file.cacheKey) {
+                needRun = true
+            }
+        }
+        if (!force && !needRun) return
+
+        let id: string;
+
+        try {
+            showStatus('Creating Socket Report...')
+            const form = new FormData();
+            for (const file of files) {
+                const filepath = workspace.asRelativePath(file.uri)
+                const fileObj = new File([file.body], filepath)
+                form.set(filepath, fileObj);
+            }
+            const reportBody = new FormDataEncoder(form);
+
+            const req = https.request(`https://api.socket.dev/v0/report/upload`, {
+                method: 'PUT',
+                headers: {
+                    ...reportBody.headers,
+                    'Authorization': authorizationHeaderValue,
+                }
+            });
+            Readable.from(reportBody).pipe(req);
+    
+            const [res] = (await once(req, 'response')) as [IncomingMessage]
+            const result = JSON.parse(await text(res));
+            if (res.statusCode !== 200) {
+                throw new Error(result.error.message)
+            }
+            id = result.id;
+        } catch (e) {
+            showErrorStatus(e);
+            throw e;
+        }
+
         try {
             showStatus('Running Socket Report...')
-            const { id } = JSON.parse(await stdout)
             const MAX_ATTEMPTS = 10
             let attempts = 0
             while (attempts++ < MAX_ATTEMPTS) {
