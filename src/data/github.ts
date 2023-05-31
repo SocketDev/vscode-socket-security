@@ -18,7 +18,7 @@ function orgOrUserFromString(url: string): string | undefined {
  * install the github app against rather than asking for too much permissions
  * @param workspaceRootURI
  */
-async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Promise<string | undefined> {
+export async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Promise<string | undefined> {
     // package.json repository
     try {
         const pkg = JSON.parse(

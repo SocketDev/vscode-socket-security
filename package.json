@@ -39,15 +39,49 @@
     "main": "./out/main.js",
     "homepage": "https://socket.dev",
     "contributes": {
-        "commands": [{
-            "command": "socket-security.runReport",
-            "category": "Socket Security",
-            "title": "Run Report",
-            "enablement": "workspaceFolderCount >= 1"
-        }],
+        "commands": [
+            {
+                "command": "socket-security.runReport",
+                "category": "Socket Security",
+                "title": "Run Report",
+                "enablement": "workspaceFolderCount >= 1"
+            },
+            {
+                "command": "socket-security.logout",
+                "category": "Socket Security",
+                "title": "Logout of Socket.dev",
+                "enablement": "socket-security.showLogout"
+            },
+            {
+                "command": "socket-security.login",
+                "category": "Socket Security",
+                "title": "Login to Socket.dev"
+            }
+        ],
+        "authentication": [
+            {
+                "id": "socket-security",
+                "label": "Socket Security (socket.dev)"
+            }
+        ],
         "configuration": {
             "title": "Socket Security",
             "properties": {
+                "socket-security.operatingMode": {
+                    "type": "string",
+                    "enum": [
+                        "login",
+                        "uncredited",
+                        "disabled"
+                    ],
+                    "enumItemLabels": [
+                        "Use API Key for all authenticated operations.",
+                        "No API Key. Relevant uploads will be anonymous. Data is public if URLs are exposed.",
+                        "Disable features using authenticated operations."
+                    ],
+                    "description": "Authenticated operations use the following mode of operation.",
+                    "scope": "machine-overridable"
+                },
                 "socket-security.showAllIssueTypes": {
                     "order": 0,
                     "type": "boolean",
@@ -122,18 +156,19 @@
         "octokit": "^2.0.10",
         "safe-stable-stringify": "^2.4.1",
         "semver": "^7.3.8",
+        "xdg-app-paths": "^8.3.0",
         "yaml": "^2.1.3"
     },
     "devDependencies": {
         "@types/ini": "^1.3.31",
         "@types/json-to-ast": "^2.1.2",
-        "@types/node": "^16.11.7",
+        "@types/node": "^16.18.29",
         "@types/vscode": "^1.26.0",
         "@typescript-eslint/eslint-plugin": "^5.42.0",
         "@typescript-eslint/parser": "^5.42.0",
         "esbuild": "^0.16.7",
         "eslint": "^8.26.0",
-        "typescript": "^4.8.4",
+        "typescript": "^5.0.4",
         "vsce": "^2.15.0"
     },
     "repository": {

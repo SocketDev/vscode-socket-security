@@ -8,6 +8,7 @@ import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from "../util";
 import * as stableStringify from 'safe-stable-stringify';
 import watchers from '../fs-watchers'
+import { sniffForGithubOrgOrUser } from './github'
 
 export type SocketReport = {
     issues: Array<{
@@ -55,7 +56,7 @@ export function radixMergeReportIssues(report: SocketReport): IssueRadixTrie {
 
 // type ReportEvent = {uri: string, report: SocketReport}
 // type onReportHandler = (evt: ReportEvent) => void
-export function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
+export async function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
     const status = vscode.window.createStatusBarItem(`${EXTENSION_PREFIX}.report`, vscode.StatusBarAlignment.Right)
     status.name = 'Socket Security'
     status.hide();
@@ -79,19 +80,8 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
     }
     const { workspace } = vscode
 
-    const editorConfig = workspace.getConfiguration(EXTENSION_PREFIX)
-    let apiKey: string | undefined
-    let authorizationHeaderValue: string = ''
-    function syncWorkspaceConfiguration() {
-        // early adopter release given big quota
-        // hidden settings for testing
-        apiKey = editorConfig.get('socketSecurityAPIKey') ?? 'sktsec_t_--RAN5U4ivauy4w37-6aoKyYPDt5ZbaT5JBVMqiwKo_api'
-        if (typeof apiKey !== 'string' || !apiKey) {
-            apiKey = process.env.SOCKET_SECURITY_API_KEY
-        }
-        if (apiKey) {
-            authorizationHeaderValue = `Basic ${Buffer.from(`${apiKey}:`).toString('base64url')}`
-        }
+    // const editorConfig = workspace.getConfiguration(EXTENSION_PREFIX)
+    async function syncWorkspaceConfiguration() {
         reportData.recalculateAll()
     }
     workspace.onDidChangeConfiguration((e) => {
@@ -141,19 +131,32 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         ast?: import('json-to-ast').ASTNode
     }> = new Map()
     async function runReport(uri: vscode.Uri, force: boolean = false) {
+        force = true
         if (!force) {
             if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('reportsEnabled')) {
                 return;
             }
         }
-        if (!apiKey) {
-            return
-        }
         const workspaceFolderURI = getWorkspaceFolderURI(uri)
         if (!workspaceFolderURI) {
             return
         }
-        const files = await workspace.findFiles('**/package{.json}', '**/node_modules/**').then(fileUris => {
+        const scopes: string[] = []
+        let APIToken
+        try {
+            const sess = await vscode.authentication.getSession(`${EXTENSION_PREFIX}`, scopes, {
+                createIfNone: true
+            })
+            if (sess) {
+                APIToken = sess.accessToken
+            }
+        } catch (e) {
+            // manually cancelled?
+        }
+        if (!APIToken) {
+            return
+        }
+        const files = await workspace.findFiles('**/package{-lock,}{.json}', '**/node_modules/**').then(fileUris => {
             return Promise.all(
                 fileUris.map(async (uri) => {
                     return {uri, body: await workspace.fs.readFile(uri)}
@@ -211,7 +214,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
                 cwd: workspaceFolderURI.fsPath,
                 env: {
                     ...process.env,
-                    SOCKET_SECURITY_API_KEY: `${apiKey}`
+                    SOCKET_SECURITY_API_KEY: `${APIToken}`
                 }
             }
         )
@@ -235,7 +238,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             while (attempts++ < MAX_ATTEMPTS) {
                 const req = https.get(`https://api.socket.dev/v0/report/view/${encodeURIComponent(id)}`, {
                     headers: {
-                        'Authorization': authorizationHeaderValue
+                        'Authorization': `Basic ${Buffer.from(`${APIToken}:`).toString('base64url')}`
                     }
                 });
                 req.end();
@@ -288,7 +291,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         (uri) => runReport(uri),
         () => getDefaultReport()
     )
-    syncWorkspaceConfiguration()
+    await syncWorkspaceConfiguration()
     const api = {
         effectiveReportForUri: (uri: vscode.Uri) => reportData.get(uri),
         onReport(...params: Parameters<typeof reportData.on>) {

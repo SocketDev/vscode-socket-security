@@ -2,21 +2,25 @@
     "compilerOptions": {
         "module": "ESNext",
         "moduleResolution": "node",
-        "target": "es2020",
-		"lib": ["es2020"],
+        "target": "ESNext",
+		"lib": ["ESNext", "DOM"],
         "outDir": "out",
         "sourceMap": true,
-        "rootDir": "src",
+        "rootDir": "settings",
         "skipLibCheck": true,
         "esModuleInterop": true,
         /* Strict Type-Checking Option */
         "strict": true,   /* enable all strict type-checking options */
         /* Additional Checks */
-        "noUnusedLocals": true /* Report errors on unused locals. */
+        // "noUnusedLocals": true, /* Report errors on unused locals. */
+        "types": ["node"]
     },
     "typeAcquisition": {
         "enable": true
     },
+    "include": [
+        "settings"
+    ],
     "exclude": [
         "node_modules"
     ]

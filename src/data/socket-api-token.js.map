@@ -1,0 +1,1 @@
+{"version":3,"file":"socket-api-token.js","sourceRoot":"","sources":["socket-api-token.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,MAAM,MAAM,QAAQ,CAAA;AAChC,MAAM,UAAU,iBAAiB,CAAC,OAAgC,EAAE,KAAgC;IAChG,MAAM,CAAC,MAAM,CAAC,YAAY,CAAC;QACvB,KAAK,EAAE,2BAA2B;QAClC,WAAW,EAAE,OAAO;QACpB,MAAM,EAAE,yCAAyC;KACpD,EAAE,KAAK,CAAC,CAAA;AACb,CAAC"}

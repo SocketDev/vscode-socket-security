@@ -13,8 +13,10 @@ import { installGithubApp } from './data/github';
 import * as javascriptFiles from './ui/javascript-file'
 import { parseExternals } from './ui/parse-externals';
 import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
+import * as auth from './installation-settings/auth'; './auth'
 
 export async function activate(context: ExtensionContext) {
+    await auth.activate(context)
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_PREFIX}.installGitHubApp`,installGithubApp),
         vscode.commands.registerCommand(`${EXTENSION_PREFIX}.ignoreIssueType`, async (from: vscode.Uri, type: string) => {
@@ -31,7 +33,7 @@ export async function activate(context: ExtensionContext) {
     const config = editorConfig.activate(context);
     const [socketConfig, reports] = await Promise.all([
         socketYaml.activate(context),
-        report.activate(context)
+        await report.activate(context)
     ])
     javascriptFiles.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
