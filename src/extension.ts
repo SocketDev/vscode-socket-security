@@ -2,15 +2,15 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import * as vscode from 'vscode';
-import { ExtensionContext, languages, workspace } from 'vscode';
+import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
-import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
+import * as pkgJSON from './ui/package-json';
 import * as report from './data/report'
 import { radixMergeReportIssues, SocketReport } from './data/report';
 import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
-import * as javascriptFiles from './ui/javascript-file'
+import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
 import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
 
@@ -33,7 +33,7 @@ export async function activate(context: ExtensionContext) {
         socketYaml.activate(context),
         report.activate(context)
     ])
-    javascriptFiles.activate(context, reports, socketConfig, config)
+    files.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
     const watchHandler: SharedFilesystemWatcherHandler = {
         onDidChange(f) {
@@ -203,21 +203,7 @@ export async function activate(context: ExtensionContext) {
     }
 
     context.subscriptions.push(
-        languages.registerCodeLensProvider({
-            language: 'json',
-            pattern: '**/package.json',
-            scheme: undefined
-        }, {
-            provideCodeLenses: pkgJSONProvideCodeLenses
-        }),
-        languages.registerCodeActionsProvider({
-            scheme: undefined,
-            language: 'json',
-            pattern: '**/package.json'
-        }, {
-            provideCodeActions: pkgJSONProvideCodeActions
-        }, {
-            providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
-        })
+        pkgJSON.registerCodeLensProvider(),
+        pkgJSON.registerCodeActionsProvider()
     )
 }

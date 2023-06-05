@@ -10,12 +10,13 @@ type ExternalRef = {
     prioritize?: boolean
 }
 
-export const SUPPORTED_LANGUAGE_IDS = [
-    'javascript',
-    'javascriptreact',
-    'typescript',
-    'typescriptreact'
-];
+export const SUPPORTED_LANGUAGES: Record<string, string> = {
+    javascript: 'npm',
+    javascriptreact: 'npm',
+    typescript: 'npm',
+    typescriptreact: 'npm',
+    python: 'pypi'
+}
 
 function getPackageNameFromSpecifier(name: string): string {
     return (
@@ -34,7 +35,7 @@ function getPackageNameFromVersionRange(name: string): string {
 export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> | null {
     const src = doc.getText();
     const results: Array<ExternalRef> = []
-    if (SUPPORTED_LANGUAGE_IDS.includes(doc.languageId)) {
+    if (SUPPORTED_LANGUAGES[doc.languageId] === 'npm') {
         let ast
         try {
             ast = parser.parse(
@@ -238,6 +239,8 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
                 this.traverse(path)
             }
         })
+    } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'pypi') {
+        
     } else if (path.basename(doc.fileName) === 'package.json') {
         const pkg = jsonToAST(src, {
             loc: true

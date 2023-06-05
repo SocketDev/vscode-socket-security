@@ -11,6 +11,7 @@ import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from '../util';
 import * as stableStringify from 'safe-stable-stringify';
 import watchers from '../fs-watchers'
+import { GlobPatterns, getGlobPatterns } from './glob-patterns';
 
 export type SocketReport = {
     issues: Array<{
@@ -146,9 +147,6 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         cacheKey: PackageRootCacheKey,
     }> = new Map()
 
-    type GlobPatterns = Record<string, Record<string, { pattern: string }>>
-    let globPatternsPromise: Promise<GlobPatterns>
-
     async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => PackageRootCacheKey | null) {
         const uris = await workspace.findFiles(pattern, '**/{node_modules,.git}/**');
 
@@ -187,26 +185,9 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             return
         }
 
-        if (!globPatternsPromise) {
-            const req = https.get(`https://api.socket.dev/v0/report/supported`, {
-                headers: {
-                    'Authorization': authorizationHeaderValue
-                }
-            })
-            req.end()
-            globPatternsPromise = (once(req, 'response') as Promise<[IncomingMessage]>)
-                .then(async ([res]) => {
-                    const result = JSON.parse(await text(res))
-                    if (res.statusCode !== 200) {
-                        throw new Error(result.error.message)
-                    }
-                    return result
-                })
-        }
-
         let globPatterns: GlobPatterns
         try {
-            globPatterns = await globPatternsPromise
+            globPatterns = await getGlobPatterns()
         } catch (e) {
             showErrorStatus(e);
             throw e;

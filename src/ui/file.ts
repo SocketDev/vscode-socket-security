@@ -5,16 +5,24 @@ import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../util';
 import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
-import { parseExternals, SUPPORTED_LANGUAGE_IDS } from './parse-externals';
+import { parseExternals, SUPPORTED_LANGUAGES } from './parse-externals';
+import { pyBuiltins } from '../utils/pyBuiltins';
 
-// @ts-expect-error the types are wrong
-let isBuiltin: (name: string) => boolean = module.isBuiltin ||
+// @ts-expect-error missing module.isBuiltin
+let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
     ((builtinModules: string[]) => {
         const builtins = new Set<string>(builtinModules);
         return (name: string) => {
             return builtins.has(name.startsWith('node:') ? name.slice(5) : name);
         };
     })(module.builtinModules);
+
+let isBuiltin = (name: string, eco: string): boolean => {
+    if (eco === 'npm') return isNodeBuiltin(name);
+    if (eco === 'pypi') return pyBuiltins.has(name)
+    return false;
+}
+    
 
 // TODO: cache by detecting open editors and closing
 export function activate(
@@ -76,27 +84,28 @@ export function activate(
            depscore: number
         },
         metrics: {
-            linesOfCode: number,
-            dependencyCount: number,
-            devDependencyCount: number,
-            transitiveDependencyCount: number,
+            linesOfCode?: number,
+            dependencyCount?: number,
+            devDependencyCount?: number,
+            transitiveDependencyCount?: number,
         }
     }
     const depscoreCache = new Map<string, {
         expires: number,
         score: Promise<PackageScore>
     }>()
-    function getDepscore(pkgName: string, signal: AbortSignal): Promise<PackageScore> {
+    function getDepscore(pkgName: string, eco: string, signal: AbortSignal): Promise<PackageScore> {
         if (signal.aborted) {
             return Promise.reject('Aborted');
         }
-        const existing = depscoreCache.get(pkgName)
+        const cacheKey = `${eco}.${pkgName}`
+        const existing = depscoreCache.get(cacheKey)
         const time = Date.now();
         if (existing && time < existing.expires) {
             return existing.score;
         }
         const score = new Promise<PackageScore>((f, r) => {
-            const req = https.get(`https://socket.dev/api/npm/package-info/score?name=${pkgName}`);
+            const req = https.get(`https://socket.dev/api/${eco}/package/scores?name=${pkgName}`);
             function cleanupReq() {
                 try {
                     req.destroy();
@@ -127,7 +136,7 @@ export function activate(
                 }
             })
         });
-        depscoreCache.set(pkgName, {
+        depscoreCache.set(cacheKey, {
             // 10minute cache
             expires: time + 10 * 60 * 1000,
             score
@@ -135,6 +144,7 @@ export function activate(
         return score;
     }
     function refAndParseIfNeeded(doc: vscode.TextDocument, socketReport: SocketReport, socketYamlConfig: SocketYml) {
+        const eco = SUPPORTED_LANGUAGES[doc.languageId]
         // const src = doc.getText()
         let hoversAndCount = srcToHoversAndCount.get(doc.fileName)
         if (hoversAndCount) {
@@ -181,7 +191,7 @@ export function activate(
                 if (relevantIssues.length === 0 && irrelevantIssues.length === 0) {
                     continue
                 }
-                let vizMarkdown = `Socket Security Summary for <a href="https://socket.dev/npm/package/${name}">${name} $(link-external)</a>:\n`
+                let vizMarkdown = `Socket Security Summary for <a href="https://socket.dev/${eco}/package/${name}">${name} $(link-external)</a>:\n`
                 function issueTable(issues: IssueTableEntry[]) {
                     return `\n
 Severity | Type | Description
@@ -248,7 +258,7 @@ ${issues.sort((a, b) => sortIssues({
             return undefined
         }
     };
-    for (const languageId of SUPPORTED_LANGUAGE_IDS) {
+    for (const languageId in SUPPORTED_LANGUAGES) {
         context.subscriptions.push(vscode.languages.registerHoverProvider(languageId, hoverProvider));
     }
     let currentDecorateEditors: AbortController = new AbortController()
@@ -261,9 +271,9 @@ ${issues.sort((a, b) => sortIssues({
         }
     );
     function decorateEditor(e: vscode.TextEditor, abortSignal: AbortSignal) {
-        if (!SUPPORTED_LANGUAGE_IDS.includes(e.document.languageId)) {
-            return
-        }
+        const eco = SUPPORTED_LANGUAGES[e.document.languageId];
+        if (!eco) return
+
         const informativeDecorations: Array<vscode.DecorationOptions> = [];
         const warningDecorations: Array<vscode.DecorationOptions> = [];
         const errorDecorations: Array<vscode.DecorationOptions> = [];
@@ -277,7 +287,7 @@ ${issues.sort((a, b) => sortIssues({
             return
         }
         for (const {name, range} of externals) {
-            if (isBuiltin(name)) {
+            if (isBuiltin(name, eco)) {
                 const deco: vscode.DecorationOptions = {
                     range,
                     hoverMessage: `Socket Security skipped for builtin module`
@@ -286,7 +296,7 @@ ${issues.sort((a, b) => sortIssues({
                 e.setDecorations(informativeDecoration, informativeDecorations)
                 continue;
             }
-            getDepscore(name, abortSignal).then(score => {
+            getDepscore(name, eco, abortSignal).then(score => {
 
                 if (abortSignal.aborted) {
                     return;
@@ -294,25 +304,25 @@ ${issues.sort((a, b) => sortIssues({
                 const { score: { depscore }} = score
                 const depscoreStr = (depscore * 100).toFixed(0)
                 const hoverMessage = new vscode.MarkdownString(`
-Socket Security for [${name} $(link-external)](https://socket.dev/npm/package/${name}): ${depscoreStr}
+Socket Security for [${name} $(link-external)](https://socket.dev/${eco}/package/${name}): ${depscoreStr}
                 
 <table>
-<tr>
+${score.metrics.linesOfCode ?? `<tr>
 <td> Lines of Code </td>
-<td>${ score.metrics.linesOfCode } </td>
-</tr>
-<tr>
+<td> ${score.metrics.linesOfCode} </td>
+</tr>`}
+${score.metrics.dependencyCount ?? `<tr>
 <td> Dependencies </td>
-<td>${ score.metrics.dependencyCount } </td>
-</tr>
-<tr>
+<td> ${score.metrics.dependencyCount} </td>
+</tr>`}
+${score.metrics.devDependencyCount ?? `<tr>
 <td> Dev Dependencies </td>
-<td>${ score.metrics.devDependencyCount} </td>
-</tr>
-<tr>
+<td> ${score.metrics.devDependencyCount} </td>
+</tr>`}
+${score.metrics.transitiveDependencyCount ?? `<tr>
 <td> Transitive Dependencies </td>
-<td>${score.metrics.transitiveDependencyCount} </td>
-</tr>
+<td> ${score.metrics.transitiveDependencyCount} </td>
+</tr>`}
 </table>
 `, true)
                 hoverMessage.supportHtml = true

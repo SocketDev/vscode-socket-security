@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import jsonToAST from 'json-to-ast'
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from '../util';
 
-export function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
+function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
     const packageJSONSource = document.getText()
     const ast = jsonToAST(packageJSONSource, { loc: true })
     const lenses = []
@@ -34,7 +34,17 @@ export function provideCodeLenses(document: vscode.TextDocument, token: vscode.C
     return lenses
 }
 
-export function provideCodeActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
+export function registerCodeLensProvider() {
+    return vscode.languages.registerCodeLensProvider({
+        language: 'json',
+        pattern: '**/package.json',
+        scheme: undefined
+    }, {
+        provideCodeLenses
+    })
+}
+
+function provideCodeActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
     let actions = []
     for (const diag of context.diagnostics) {
         if (diag.source === DIAGNOSTIC_SOURCE_STR) {
@@ -52,4 +62,16 @@ export function provideCodeActions(document: vscode.TextDocument, range: vscode.
         }
     }
     return actions
+}
+
+export function registerCodeActionsProvider() {
+    return vscode.languages.registerCodeActionsProvider({
+        language: 'json',
+        pattern: '**/package.json',
+        scheme: undefined
+    }, {
+        provideCodeActions
+    }, {
+        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+    })
 }
