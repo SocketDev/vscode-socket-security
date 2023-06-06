@@ -1,7 +1,7 @@
 // extracted from https://github.com/PyCQA/isort/blob/main/isort/stdlibs
 // it's possible to dynamically get builtins if we can find the Python path,
 // but that's way harder than it sounds
-export const pyBuiltins = new Set([
+export const pythonBuiltins = new Set([
     'AL',
     'BaseHTTPServer',
     'Bastion',

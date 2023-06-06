@@ -37,6 +37,7 @@
     ],
     "type": "commonjs",
     "main": "./out/main.js",
+    "browser": "./out/main.js",
     "homepage": "https://socket.dev",
     "contributes": {
         "commands": [
@@ -95,6 +96,12 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Create reports from package manifest files (package.json / package-lock.json) that require sending data remotely. Disabling this will disable all issues but keep scores listed."
+                },
+                "socket-security.pythonInterpreterPath": {
+                    "order": 5,
+                    "type": "string",
+                    "description": "Path to a Python interpreter to use for dependency analysis.",
+                    "examples": ["/usr/bin/python"]
                 }
             }
         }
@@ -117,6 +124,7 @@
         "@babel/parser": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
         "acorn-walk": "^8.2.0",
+        "antlr4": "^4.13.0",
         "ast-types": "^0.14.2",
         "form-data-encoder": "^3.0.0",
         "formdata-node": "^5.0.1",

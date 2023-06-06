@@ -6,7 +6,7 @@ import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
 import { parseExternals, SUPPORTED_LANGUAGES } from './parse-externals';
-import { pyBuiltins } from '../utils/pyBuiltins';
+import { pythonBuiltins } from '../data/python-builtins';
 
 // @ts-expect-error missing module.isBuiltin
 let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
@@ -19,7 +19,7 @@ let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
 
 let isBuiltin = (name: string, eco: string): boolean => {
     if (eco === 'npm') return isNodeBuiltin(name);
-    if (eco === 'pypi') return pyBuiltins.has(name)
+    if (eco === 'pypi') return pythonBuiltins.has(name)
     return false;
 }
     
@@ -143,7 +143,7 @@ export function activate(
         });
         return score;
     }
-    function refAndParseIfNeeded(doc: vscode.TextDocument, socketReport: SocketReport, socketYamlConfig: SocketYml) {
+    async function refAndParseIfNeeded(doc: vscode.TextDocument, socketReport: SocketReport, socketYamlConfig: SocketYml) {
         const eco = SUPPORTED_LANGUAGES[doc.languageId]
         // const src = doc.getText()
         let hoversAndCount = srcToHoversAndCount.get(doc.fileName)
@@ -152,7 +152,7 @@ export function activate(
         } else {
             if (!socketReport) return
             let hovers: Array<vscode.Hover> = []
-            const externals = parseExternals(doc)
+            const externals = await parseExternals(doc)
             if (!externals) {
                 return
             }
@@ -225,7 +225,7 @@ ${issues.sort((a, b) => sortIssues({
         }
     }
     const hoverProvider: vscode.HoverProvider = {
-        provideHover(document, position, token) {
+        async provideHover(document, position, token) {
             const socketReportData = reports.effectiveReportForUri(document.uri)
             const socketReport = socketReportData.data
             const socketYamlConfig = socketConfig.effectiveConfigForUri(document.uri).data
@@ -235,13 +235,13 @@ ${issues.sort((a, b) => sortIssues({
                 // changed
                 if (existingSrc !== src) {
                     deref(document);
-                    refAndParseIfNeeded(document, socketReport, socketYamlConfig);
+                    await refAndParseIfNeeded(document, socketReport, socketYamlConfig);
                 } else {
                     // unchanged src, changed setting?
                 }
             } else {
                 // new
-                refAndParseIfNeeded(document, socketReport, socketYamlConfig);
+                await refAndParseIfNeeded(document, socketReport, socketYamlConfig);
             }
             urlToSrc.set(document.fileName, src)
             let cachedHoversAndCount = srcToHoversAndCount.get(document.fileName)
@@ -270,7 +270,7 @@ ${issues.sort((a, b) => sortIssues({
             decorateEditors()
         }
     );
-    function decorateEditor(e: vscode.TextEditor, abortSignal: AbortSignal) {
+    async function decorateEditor(e: vscode.TextEditor, abortSignal: AbortSignal) {
         const eco = SUPPORTED_LANGUAGES[e.document.languageId];
         if (!eco) return
 
@@ -282,7 +282,7 @@ ${issues.sort((a, b) => sortIssues({
         e.setDecorations(errorDecoration, errorDecorations);
         e.setDecorations(warningDecoration, warningDecorations);
 
-        const externals = parseExternals(e.document)
+        const externals = await parseExternals(e.document)
         if (!externals) {
             return
         }

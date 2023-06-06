@@ -3,6 +3,7 @@ import * as parser from '@babel/parser'
 import * as astTypes from "ast-types";
 import path from 'node:path';
 import jsonToAST from 'json-to-ast';
+import { getPythonInterpreter } from '../data/python-interpreter';
 
 type ExternalRef = {
     name: string,
@@ -18,21 +19,21 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
     python: 'pypi'
 }
 
-function getPackageNameFromSpecifier(name: string): string {
+function getJSPackageNameFromSpecifier(name: string): string {
     return (
         name.startsWith('@') ?
         name.split('/', 2) :
         name.split('/', 1)
     ).join('/');
 }
-function getPackageNameFromVersionRange(name: string): string {
+function getJSPackageNameFromVersionRange(name: string): string {
     return (
         name.startsWith('@') ?
         name.split('@', 3) :
         name.split('@', 2)
     ).join('@');
 }
-export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Iterable<ExternalRef> | null {
+export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'languageId' | 'fileName'>): Promise<Iterable<ExternalRef> | null> {
     const src = doc.getText();
     const results: Array<ExternalRef> = []
     if (SUPPORTED_LANGUAGES[doc.languageId] === 'npm') {
@@ -59,7 +60,7 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
             if (/^[\.\/]/u.test(specifier)) {
                 return
             }
-            const pkgName = getPackageNameFromSpecifier(specifier)
+            const pkgName = getJSPackageNameFromSpecifier(specifier)
             const loc = node.loc
             if (!loc) return
             const startPos: vscode.Position = new vscode.Position(loc.start.line - 1, loc.start.column)
@@ -240,7 +241,13 @@ export function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 'langu
             }
         })
     } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'pypi') {
-        
+        const pythonInterpreter = await getPythonInterpreter()
+        if (pythonInterpreter) {
+
+        } else {
+            // fallback for web/whenever Python interpreter not available
+            const pyImportRE = /\n\s*(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)\s*?\n/
+        }
     } else if (path.basename(doc.fileName) === 'package.json') {
         const pkg = jsonToAST(src, {
             loc: true
@@ -312,7 +319,7 @@ function parsePkgOverrideExternals(node: jsonToAST.ObjectNode, results: Array<Ex
                 pkgName = contextualName
             }
         } else {
-            pkgName = getPackageNameFromVersionRange(child.key.value);
+            pkgName = getJSPackageNameFromVersionRange(child.key.value);
         }
         if (pkgName) {
             const { loc } = child.value.type === 'Literal' ? child : child.key

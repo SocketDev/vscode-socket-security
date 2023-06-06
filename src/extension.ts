@@ -13,6 +13,7 @@ import { installGithubApp } from './data/github';
 import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
 import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
+import { initPython, onMSPythonInterpreterChange } from './data/python-interpreter';
 
 export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
@@ -57,14 +58,18 @@ export async function activate(context: ExtensionContext) {
 
     context.subscriptions.push(
         diagnostics,
+        await initPython(),
         watchers['package-lock.json'].watch(watchHandler),
         watchers['package.json'].watch(watchHandler),
     );
-    if (workspace.workspaceFolders) {
-        for (const workFolder of workspace.workspaceFolders) {
-            populateDiagnostics(workFolder.uri)
+    const runAll = () => {
+        if (workspace.workspaceFolders) {
+            for (const workFolder of workspace.workspaceFolders) {
+                populateDiagnostics(workFolder.uri)
+            }
         }
     }
+    runAll();
     context.subscriptions.push(
         reports.onReport(null, async (evt) => {
             populateDiagnostics(evt.uri)
@@ -74,17 +79,17 @@ export async function activate(context: ExtensionContext) {
         }),
         config.onDependentConfig([
             `${EXTENSION_PREFIX}.showAllIssueTypes`,
-            `${EXTENSION_PREFIX}.minIssueLevel`
-        ], () => {
-            if (workspace.workspaceFolders) {
-                for (const folder of workspace.workspaceFolders) {
-                    populateDiagnostics(folder.uri)
-                }
+            `${EXTENSION_PREFIX}.minIssueLevel`,
+            `${EXTENSION_PREFIX}.pythonInterpreterPath`
+        ], runAll),
+        onMSPythonInterpreterChange(() => {
+            if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('pythonInterpreterPath')) {
+                runAll();
             }
         })
     )
-    function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
-        const externals = parseExternals(doc)
+    async function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
+        const externals = await parseExternals(doc)
         if (!externals) {
             return
         }
@@ -163,13 +168,13 @@ export async function activate(context: ExtensionContext) {
         }
         for (const textDocumentURI of workspacePkgs) {
             const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
-            const relevantIssues = normalizeReportAndLocations(currentReport, {
+            const relevantIssues = (await normalizeReportAndLocations(currentReport, {
                 getText() {
                     return packageJSONSource
                 },
                 fileName: textDocumentURI.fsPath,
                 languageId: 'json'
-            })?.sort(sortIssues)
+            }))?.sort(sortIssues)
             if (relevantIssues && relevantIssues.length) {
                 const diagnosticsToShow = (await Promise.all(relevantIssues.map(
                     async (issue) => {
