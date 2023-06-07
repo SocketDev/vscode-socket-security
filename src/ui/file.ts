@@ -278,11 +278,10 @@ ${issues.sort((a, b) => sortIssues({
         const warningDecorations: Array<vscode.DecorationOptions> = [];
         const errorDecorations: Array<vscode.DecorationOptions> = [];
 
+        const externals = await parseExternals(e.document)
         e.setDecorations(informativeDecoration, informativeDecorations);
         e.setDecorations(errorDecoration, errorDecorations);
         e.setDecorations(warningDecoration, warningDecorations);
-
-        const externals = await parseExternals(e.document)
         if (!externals) {
             return
         }
@@ -307,19 +306,19 @@ ${issues.sort((a, b) => sortIssues({
 Socket Security for [${name} $(link-external)](https://socket.dev/${eco}/package/${name}): ${depscoreStr}
                 
 <table>
-${score.metrics.linesOfCode ?? `<tr>
+${score.metrics.linesOfCode == null ? '' : `<tr>
 <td> Lines of Code </td>
 <td> ${score.metrics.linesOfCode} </td>
 </tr>`}
-${score.metrics.dependencyCount ?? `<tr>
+${score.metrics.dependencyCount == null ? '' :`<tr>
 <td> Dependencies </td>
 <td> ${score.metrics.dependencyCount} </td>
 </tr>`}
-${score.metrics.devDependencyCount ?? `<tr>
+${score.metrics.devDependencyCount == null ? '' :`<tr>
 <td> Dev Dependencies </td>
 <td> ${score.metrics.devDependencyCount} </td>
 </tr>`}
-${score.metrics.transitiveDependencyCount ?? `<tr>
+${score.metrics.transitiveDependencyCount == null ? '' :`<tr>
 <td> Transitive Dependencies </td>
 <td> ${score.metrics.transitiveDependencyCount} </td>
 </tr>`}

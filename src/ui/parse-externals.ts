@@ -247,12 +247,15 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
             const childProcess = await import('node:child_process');
             // Python dependency extractor
             // handles basic constant folding + dynamic import extraction
+            // some limited error correction functionality
+            
+            // possible future TODO: use python tokenizer with error-correcting
+            // indents and manually parse - better perf + accuracy
             const proc = childProcess.spawn(pythonInterpreter, ['-c', `
-import ast
-import json
+import ast, tokenize, token, json, sys, io
 
-src = ${JSON.stringify(src)}
-src_lines = src.splitlines()
+src = u${JSON.stringify(src)}
+src_lines = src.split(u'\\n')
 
 xrefs = []
 pending_xref = None
@@ -517,13 +520,68 @@ class ImportFinder(ast.NodeVisitor):
             set_loc(node)
         ast.NodeVisitor.generic_visit(self, node)
 
-full_ast = ast.parse(src)
+err_lineno = -1
+err_offset = -1
+while True:
+    try:
+        full_ast = ast.parse(src)
+        break
+    except SyntaxError as err:
+        if err.lineno == err_lineno and err.offset == err_offset:
+            sys.exit()
+        err_lineno = err.lineno
+        err_offset = err.offset
+        xrefs = []
+        pending_xref = None
+        last_colon = False
+        arrived = False
+        indents = []
+        backup_indent = '\\t' if any(line[:1] == '\\t' for line in src_lines) else '    '
+        tokens = tokenize.generate_tokens(io.StringIO(src).readline)
+        newlines = (token.NEWLINE, token.NL) if hasattr(token, 'NL') else (token.NEWLINE, tokenize.NL)
+        for t in tokens:
+            if t[2][0] == err_lineno or t[0] in newlines and t[2][0] == err_lineno - 1:
+                break
+            elif t[0] == token.OP and t[1] == ":":
+                last_colon = True
+            elif t[0] not in (token.INDENT, token.DEDENT) and t[0] not in newlines:
+                last_colon = False
+            if t[0] == token.INDENT and (not arrived or last_colon):
+                indents.append(t[1])
+            elif t[0] == token.DEDENT:
+                indents.pop()
+        if t[2][0] != err_lineno:
+            try:
+                next_token = next(tokens)
+                if next_token[0] == token.INDENT:
+                    if last_colon:
+                        indents.append(next_token[1])
+                elif last_colon:
+                    indents.append(indents[-1] if indents else backup_indent)
+            except IndentationError as err:
+                indents.pop()
+        src_lines[err_lineno - 1] = ''.join(indents) + 'pass'
+        src = '\\n'.join(src_lines)
+
 visitor = ImportFinder()
 visitor.visit(full_ast)
 save_pending_xref(len(src_lines) - 1, len(src_lines[-1]) - 1)
 print(json.dumps(xrefs))`]);
-            const output = await text(proc.stdout);
+            const output = await Promise.race([
+                text(proc.stdout),
+                new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
+            ]);
             if (!output) return null;
+            const result = JSON.parse(output, (key, value) => {
+                if (key === 'range') {
+                    return new vscode.Range(
+                        new vscode.Position(value.start.line, value.start.character),
+                        new vscode.Position(value.end.line, value.end.character)
+                    );
+                }
+                return value;
+            });
+            console.log(result);
             return JSON.parse(output, (key, value) => {
                 if (key === 'range') {
                     return new vscode.Range(

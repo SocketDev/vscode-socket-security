@@ -97,10 +97,10 @@
                     "default": true,
                     "description": "Create reports from package manifest files (package.json / package-lock.json) that require sending data remotely. Disabling this will disable all issues but keep scores listed."
                 },
-                "socket-security.pythonInterpreterPath": {
+                "socket-security.pythonInterpreter": {
                     "order": 5,
                     "type": "string",
-                    "description": "Path to a Python interpreter to use for dependency analysis.",
+                    "description": "Path to a Python interpreter to use for Socket dependency analysis.",
                     "examples": ["/usr/bin/python"]
                 }
             }

@@ -80,10 +80,10 @@ export async function activate(context: ExtensionContext) {
         config.onDependentConfig([
             `${EXTENSION_PREFIX}.showAllIssueTypes`,
             `${EXTENSION_PREFIX}.minIssueLevel`,
-            `${EXTENSION_PREFIX}.pythonInterpreterPath`
+            `${EXTENSION_PREFIX}.pythonInterpreter`
         ], runAll),
         onMSPythonInterpreterChange(() => {
-            if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('pythonInterpreterPath')) {
+            if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('pythonInterpreter')) {
                 runAll();
             }
         })
