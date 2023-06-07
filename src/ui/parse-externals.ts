@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as parser from '@babel/parser'
-import * as astTypes from "ast-types";
+import * as astTypes from 'ast-types';
 import path from 'node:path';
+import { text } from 'node:stream/consumers';
 import jsonToAST from 'json-to-ast';
 import { getPythonInterpreter } from '../data/python-interpreter';
 
@@ -243,10 +244,324 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
     } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'pypi') {
         const pythonInterpreter = await getPythonInterpreter()
         if (pythonInterpreter) {
+            const childProcess = await import('node:child_process');
+            // Python dependency extractor
+            // handles basic constant folding + dynamic import extraction
+            const proc = childProcess.spawn(pythonInterpreter, ['-c', `
+import ast
+import json
 
+src = ${JSON.stringify(src)}
+src_lines = src.splitlines()
+
+xrefs = []
+pending_xref = None
+
+def make_range(sl, sc, el, ec):
+    return {
+        "start": {
+            "line": sl,
+            "character": sc
+        },
+        "end":  {
+            "line": el,
+            "character": ec
+        }
+    }
+
+def set_loc(node):
+    save_pending_xref(node.lineno - 1, node.col_offset - 1)
+
+def save_pending_xref(end_line, end_col):
+    global pending_xref, xrefs
+    if pending_xref is not None:
+        names, start_node = pending_xref
+        while True:
+            while end_col < 0 or end_col >= len(src_lines[end_line]):
+                end_line -= 1
+                end_col = len(src_lines[end_line]) - 1
+            if not src_lines[end_line][end_col].isspace():
+                break
+            end_col -= 1
+        end_col += 1
+        for name in names:
+            xrefs.append({
+                "name": name,
+                "range": make_range(
+                    start_node.lineno - 1,
+                    start_node.col_offset,
+                    end_line,
+                    end_col
+                )
+            })
+        pending_xref = None
+
+unops = {
+    "UAdd": lambda a: +a,
+    "USub": lambda a: -a,
+    "Not": lambda a: not a,
+    "Invert": lambda a: ~a
+}
+
+binops = {
+    "Add": lambda a, b: a + b,
+    "Sub": lambda a, b: a - b,
+    "Mult": lambda a, b: a * b,
+    "Div": lambda a, b: a / b,
+    "Mod": lambda a, b: a % b,
+    "LShift": lambda a, b: a << b,
+    "RShift": lambda a, b: a >> b,
+    "BitOr": lambda a, b: a | b,
+    "BitXor": lambda a, b: a ^ b,
+    "BitAnd": lambda a, b: a & b,
+    "FloorDiv": lambda a, b: a // b,
+    "Pow": lambda a, b: a ** b
+}
+
+cmpops = {
+    "Eq": lambda a, b: a == b,
+    "NotEq": lambda a, b: a != b,
+    "Lt": lambda a, b: a < b,
+    "LtE": lambda a, b: a <= b,
+    "Gt": lambda a, b: a > b,
+    "GtE": lambda a, b: a >= b,
+    "Is": lambda a, b: a is b,
+    "IsNot": lambda a, b: a is not b,
+    "In": lambda a, b: a in b,
+    "NotIn": lambda a, b: a not in b
+}
+
+class ConstantEvaluator(ast.NodeVisitor):
+    def visit_UnaryOp(self, op):
+        global unops
+        a = self.visit(op.operand)
+        executor = unops.get(op.op.__class__.__name__)
+        if executor is None:
+            raise ValueError("unsupported UnaryOp")
+        return executor(a)
+
+    def visit_BinOp(self, op):
+        global binops
+        a = self.visit(op.left)
+        b = self.visit(op.right)
+        executor = binops.get(op.op.__class__.__name__)
+        if executor is None:
+            raise ValueError("unsupported BinOp")
+        return executor(a, b)
+
+    def visit_BoolOp(self, op):
+        is_and = isinstance(op.op, ast.And)
+        if not is_and and not isinstance(op.op, ast.Or):
+            raise ValueError("unsupported BoolOp")
+        last = self.visit(op.values[0])
+        for value in op.values[1:]:
+            result = self.visit(value)
+            if is_and:
+                if not result:
+                    return last
+            elif result:
+                return result
+            last = result
+        return last
+
+    def visit_Compare(self, cmp):
+        global cmpops
+        left = self.visit(cmp.left)
+        for op, right_expr in zip(cmp.ops, cmp.comparators):
+            executor = cmpops.get(op.__class__.__name__)
+            if executor is None:
+                raise ValueError("unsupported Compare")
+            right = self.visit(right_expr)
+            if not executor(left, right):
+                return False
+            left = right
+        return True
+
+    def visit_Subscript(sub):
+        if not isinstance(l.ctx, ast.Load):
+            raise ValueError("unsupported context")
+        tgt = self.visit(sub.value)
+        if isinstance(sub.slice, ast.Slice):
+            return tgt[sub.slice.lower:sub.slice.upper:sub.slice.step]
+        return tgt[self.visit(sub.slice)]
+
+    def visit_IfExp(self, exp):
+        if self.visit(exp.test):
+            return self.visit(exp.body)
+        return self.visit(exp.orelse)
+
+    def visit_Constant(self, value):
+        return value.value
+
+    def visit_Num(self, value):
+        return value.n
+
+    def visit_Str(self, value):
+        return value.s
+
+    def visit_Name(self, value):
+        if value.id == 'True' or value.id == 'False':
+            return value.id == 'True'
+        ast.NodeVisitor.generic_visit(self, value)
+
+    def visit_JoinedStr(self, jstr):
+        return ''.join(self.visit(val) for val in jstr.values)
+
+    def visit_FormattedValue(self, value):
+        val = self.visit(value.value)
+        if value.conversion == 115:
+            val = str(val)
+        elif value.conversion == 114:
+            val = repr(val)
+        elif value.conversion == 97:
+            val = ascii(val)
+        if value.format_spec is not None:
+            val = ('{0:' + value.format_spec + '}').format(val)
+        return str(val)
+
+    def visit_List(self, l):
+        if not isinstance(l.ctx, ast.Load):
+            raise ValueError("unsupported context")
+        return [self.visit(val) for val in l.elts]
+
+    def visit_Tuple(self, t):
+        if not isinstance(l.ctx, ast.Load):
+            raise ValueError("unsupported context")
+        return tuple(self.visit(val) for val in t.elts)
+
+    def visit_Set(self, s):
+        return set(self.visit(val) for val in s.elts)
+
+    def visit_Dict(self, d):
+        return dict(zip(
+            (self.visit(k) for k in d.keys),
+            (self.visit(v) for v in d.values)
+        ))
+
+    def generic_visit(self, node):
+        raise ValueError("unsupported construct")
+
+class ImportFinder(ast.NodeVisitor):
+    def visit_Import(self, impt):
+        global xrefs, pending_xref
+        set_loc(impt)
+        has_end = hasattr(impt, 'end_lineno') and hasattr(impt, 'end_col_offset')
+        if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
+            for alias in impt.names:
+                xrefs.append({
+                    "name": alias.name,
+                    "range": make_range(
+                        impt.lineno - 1,
+                        impt.col_offset,
+                        impt.end_lineno - 1,
+                        impt.end_col_offset
+                    )
+                })
+        else:
+            pending_xref = [alias.name for alias in impt.names], impt
+
+    def visit_ImportFrom(self, impt):
+        global xrefs, pending_xref
+        set_loc(impt)
+        has_end = hasattr(impt, 'end_lineno') and hasattr(impt, 'end_col_offset')
+        if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
+            xrefs.append({
+                "name": impt.module,
+                "range": make_range(
+                    impt.lineno - 1,
+                    impt.col_offset,
+                    impt.end_lineno - 1,
+                    impt.end_col_offset
+                )
+            })
+        else:
+            pending_xref = [impt.module], impt
+
+    def visit_Call(self, call):
+        global xrefs, pending_xref
+        set_loc(call)
+        is_import_fn = lambda fn: fn in ('__import__', 'import_module')
+        is_importlib = isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id == 'importlib'
+        if isinstance(call.func, ast.Name) and is_import_fn(call.func.id) or is_importlib and is_import_fn(call.func.attr):
+            # TODO: better relative import resolution
+            const_eval = ConstantEvaluator()
+            try:
+                tgt = None
+                for kw in call.keywords:
+                    if kw.arg == 'package':
+                        tgt = const_eval.visit(kw.arg)
+                if tgt is None:
+                    tgt = const_eval.visit(call.args[0])
+                if not isinstance(tgt, str):
+                    raise ValueError("failed to resolve import")
+                has_end = hasattr(call, 'end_lineno') and hasattr(call, 'end_col_offset')
+                if has_end and call.end_lineno is not None and call.end_col_offset is not None:
+                    xrefs.append({
+                        "name": tgt,
+                        "range": make_range(
+                            call.lineno - 1,
+                            call.col_offset,
+                            call.end_lineno - 1,
+                            call.end_col_offset
+                        )
+                    })
+                else:
+                    pending_xref = [tgt], call
+            except:
+                pass
+        else:
+            ast.NodeVisitor.generic_visit(self, call)
+
+    def generic_visit(self, node):
+        if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+            set_loc(node)
+        ast.NodeVisitor.generic_visit(self, node)
+
+full_ast = ast.parse(src)
+visitor = ImportFinder()
+visitor.visit(full_ast)
+save_pending_xref(len(src_lines) - 1, len(src_lines[-1]) - 1)
+print(json.dumps(xrefs))`]);
+            const output = await text(proc.stdout);
+            if (!output) return null;
+            return JSON.parse(output, (key, value) => {
+                if (key === 'range') {
+                    return new vscode.Range(
+                        new vscode.Position(value.start.line, value.start.character),
+                        new vscode.Position(value.end.line, value.end.character)
+                    );
+                }
+                return value;
+            });
         } else {
+            const xrefs: ExternalRef[] = [];
             // fallback for web/whenever Python interpreter not available
-            const pyImportRE = /\n\s*(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)\s*?\n/
+            const pyImportRE = /(?<=(?:^|\n)\s*)(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)(?=\s*(?:$|\n))/g;
+            const pyDynamicImportRE = /(?:__import__|import_module)\((?:"""(.+?)"""|'''(.+?)'''|"(.+?)"|'(.+?)'|)\)/g;
+            let charInd = 0
+            const lineChars = src.split('\n').map(line => charInd += line.length + 1);
+            let match: RegExpExecArray | null = null;
+            for (let nl = 0; match = pyImportRE.exec(src);) {
+                while (lineChars[nl] <= match.index) ++nl;
+                const names = match[1] ? match[1].split(',').map(v => v.trim()) : match[2];
+                const startLine = nl, startCol = match.index - (nl && lineChars[nl - 1]);
+                while (lineChars[nl] <= match.index + match[0].length) ++nl;
+                const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
+                const range = new vscode.Range(startLine, startCol, endLine, endCol);
+                for (const name of names) {
+                    xrefs.push({ name, range });
+                }
+            }
+            for (let nl = 0; match = pyDynamicImportRE.exec(src);) {
+                while (lineChars[nl] <= match.index) ++nl;
+                const name = match[1] || match[2] || match[3] || match[4];
+                const startLine = nl, startCol = match.index - (nl && lineChars[nl - 1]);
+                while (lineChars[nl] <= match.index + match[0].length) ++nl;
+                const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
+                const range = new vscode.Range(startLine, startCol, endLine, endCol);
+                xrefs.push({ name, range });
+            }
+            return xrefs;
         }
     } else if (path.basename(doc.fileName) === 'package.json') {
         const pkg = jsonToAST(src, {

@@ -19,7 +19,7 @@ let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
 
 let isBuiltin = (name: string, eco: string): boolean => {
     if (eco === 'npm') return isNodeBuiltin(name);
-    if (eco === 'pypi') return pythonBuiltins.has(name)
+    if (eco === 'pypi') return pythonBuiltins.has(name);
     return false;
 }
     
