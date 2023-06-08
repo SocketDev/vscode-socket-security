@@ -9,15 +9,18 @@ function provideCodeLenses(document: vscode.TextDocument, token: vscode.Cancella
     const lenses: vscode.CodeLens[] = [];
 
     traverseTOMLKeys(ast, (node, curPath) => {
+        const deps = curPath.length == 2 &&
+            curPath[0] === 'project' &&
+            ['dependencies' || 'optional-dependencies'].includes(curPath[1] as string);
         const inPoetry = curPath.length > 2 && 
             curPath[0] === 'tool' &&
             curPath[1] === 'poetry';
-        const oldDeps = inPoetry && curPath.length === 3 &&
+        const oldPoetryDeps = inPoetry && curPath.length === 3 &&
             ['dependencies', 'dev-dependencies'].includes(curPath[2] as string);
-        const groupDeps = inPoetry && curPath.length === 5 &&
+        const groupPoetryDeps = inPoetry && curPath.length === 5 &&
             curPath[2] === 'group' &&
             curPath[4] === 'dependencies';
-        if (oldDeps || groupDeps) {
+        if (deps || oldPoetryDeps || groupPoetryDeps) {
             const start = new vscode.Position(node.loc.start.line - 1, node.loc.start.column);
             const end = new vscode.Position(node.loc.end.line - 1, node.loc.end.column);
             const range = new vscode.Range(start, end)

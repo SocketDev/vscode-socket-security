@@ -616,6 +616,7 @@ print(json.dumps(xrefs))`]);
     } else {
         const basename = path.basename(doc.fileName);
         const globPatterns = await getGlobPatterns();
+        const pep508RE = /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i;
         if (basename === 'package.json') {
             const pkg = jsonToAST(src, {
                 loc: true
@@ -672,15 +673,22 @@ print(json.dumps(xrefs))`]);
                 return null;
             }
             traverseTOMLKeys(parsed, (key, path) => {
+                const dep = path.length === 2 &&
+                    path[0] === 'project' &&
+                    path[1] === 'dependencies';
+                const optionalDep = path.length === 3 &&
+                    path[0] === 'project' &&
+                    path[2] === 'optional-dependencies' &&
+                    typeof path[3] === 'string';
                 const inPoetry = path.length > 2 && 
                     path[0] === 'tool' &&
                     path[1] === 'poetry';
-                const oldDep = inPoetry && path.length === 4 &&
+                const oldPoetryDep = inPoetry && path.length === 4 &&
                     ['dependencies', 'dev-dependencies'].includes(path[2] as string);
-                const groupDep = inPoetry && path.length === 6 &&
+                const groupPoetryDep = inPoetry && path.length === 6 &&
                     path[2] === 'group' &&
                     path[4] === 'dependencies';
-                if ((oldDep || groupDep) && typeof path[path.length - 1] === 'string') {
+                if ((oldPoetryDep || groupPoetryDep) && typeof path[path.length - 1] === 'string') {
                     const loc = key.parent.type === 'TOMLTable' ? key.loc : key.parent.loc;
                     results.push({
                         name: path[path.length - 1] as string,
@@ -689,6 +697,23 @@ print(json.dumps(xrefs))`]);
                             new vscode.Position(loc.end.line - 1, loc.end.column)
                         )
                     });
+                } else if (
+                    (dep || optionalDep) &&
+                    key.parent.type === 'TOMLKeyValue' &&
+                    key.parent.value.type === 'TOMLArray'
+                ) {
+                    for (const depNode of key.parent.value.elements) {
+                        if (depNode.type !== 'TOMLValue' || depNode.kind !== 'string') continue;
+                        const match = pep508RE.exec(depNode.value);
+                        if (!match) continue;
+                        results.push({
+                            name: match[1],
+                            range: new vscode.Range(
+                                new vscode.Position(depNode.loc.start.line - 1, depNode.loc.start.column),
+                                new vscode.Position(depNode.loc.end.line - 1, depNode.loc.end.column)
+                            )
+                        })
+                    }
                 }
             });
         } else if (basename === 'Pipfile') {
@@ -717,10 +742,9 @@ print(json.dumps(xrefs))`]);
         } else if (micromatch.isMatch(basename, globPatterns.pypi.requirements.pattern)) {
             const commentRE = /(\s|^)#.*/;
             const lines = src.split('\n').map(line => line.replace(commentRE, ''));
-            const nameRE = /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i;
             for (let i = 0; i < lines.length; ++i) {
                 const line = lines[i];
-                const match = nameRE.exec(line);
+                const match = pep508RE.exec(line);
                 if (match) {
                     results.push({
                         name: match[1],
