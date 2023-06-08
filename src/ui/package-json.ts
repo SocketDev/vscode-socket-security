@@ -9,7 +9,7 @@ function provideCodeLenses(document: vscode.TextDocument, token: vscode.Cancella
     if (ast.type === 'Object') {
         const child: jsonToAST.PropertyNode | undefined = ast.children.find(
             child => {
-                return child.key.value === 'dependencies' || child.key.value === 'devDevdependencies'
+                return child.key.value === 'dependencies' || child.key.value === 'devDependencies'
             }
         )
         if (child) {

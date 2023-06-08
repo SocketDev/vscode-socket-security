@@ -52,8 +52,11 @@ class SharedFilesystemWatcher {
     }
 }
 
-export default {
-    'package.json': new SharedFilesystemWatcher(vscode.workspace.createFileSystemWatcher('**/package.json')),
-    'package-lock.json': new SharedFilesystemWatcher(vscode.workspace.createFileSystemWatcher('**/package-lock.json')),
-    'socket.yml': new SharedFilesystemWatcher(vscode.workspace.createFileSystemWatcher('**/socket.yml'))
+const watched: Record<string, SharedFilesystemWatcher> = {}
+
+export default function watch(pattern: string, handler: SharedFilesystemWatcherHandler) {
+    if (!watched[pattern]) watched[pattern] = new SharedFilesystemWatcher(
+        vscode.workspace.createFileSystemWatcher(`**/${pattern}`)
+    );
+    return watched[pattern].watch(handler);
 }

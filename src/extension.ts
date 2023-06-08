@@ -12,8 +12,9 @@ import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
 import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
-import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
+import watch, { SharedFilesystemWatcherHandler } from './fs-watch';
 import { initPython, onMSPythonInterpreterChange } from './data/python-interpreter';
+import { getGlobPatterns } from './data/glob-patterns';
 
 export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
@@ -56,11 +57,16 @@ export async function activate(context: ExtensionContext) {
         }
     }
 
+    const supportedFiles = await getGlobPatterns();
+    const watchTargets = [
+        ...Object.values(supportedFiles.npm),
+        ...Object.values(supportedFiles.pypi)
+    ].map(info => info.pattern);
+
     context.subscriptions.push(
         diagnostics,
         await initPython(),
-        watchers['package-lock.json'].watch(watchHandler),
-        watchers['package.json'].watch(watchHandler),
+        ...watchTargets.map(target => watch(target, watchHandler))
     );
     const runAll = () => {
         if (workspace.workspaceFolders) {

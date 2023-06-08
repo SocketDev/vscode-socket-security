@@ -10,7 +10,7 @@ import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from '../util';
 import * as stableStringify from 'safe-stable-stringify';
-import watchers from '../fs-watchers'
+import watch from '../fs-watch'
 import { GlobPatterns, getGlobPatterns } from './glob-patterns';
 
 export type SocketReport = {
@@ -108,7 +108,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
 
     addDisposablesTo(
         disposables,
-        watchers["package.json"].watch({
+        watch('package.json', {
             onDidChange(uri) {
                 runReport(uri)
             },

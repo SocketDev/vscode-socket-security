@@ -13,6 +13,7 @@
         "Code Analysis",
         "Code Quality",
         "JavaScript",
+        "Python",
         "Security",
         "Static Code Analysis",
         "TypeScript"
@@ -21,6 +22,7 @@
         "Code Analysis",
         "Code Quality",
         "JavaScript",
+        "Python",
         "Security",
         "Static Code Analysis",
         "TypeScript"
@@ -33,6 +35,10 @@
     "activationEvents": [
         "workspaceContains:**/package.json",
         "workspaceContains:**/socket.yml",
+        "workspaceContains:**/requirements.txt",
+        "workspaceContains:**/pyproject.toml",
+        "workspaceContains:**/Pipfile",
+        "onLanguage:python",
         "onLanguage:javascript"
     ],
     "type": "commonjs",
@@ -101,7 +107,9 @@
                     "order": 5,
                     "type": "string",
                     "description": "Path to a Python interpreter to use for Socket dependency analysis.",
-                    "examples": ["/usr/bin/python"]
+                    "examples": [
+                        "/usr/bin/python"
+                    ]
                 }
             }
         }
@@ -144,6 +152,7 @@
         "@typescript-eslint/parser": "^5.42.0",
         "esbuild": "^0.16.7",
         "eslint": "^8.26.0",
+        "toml-eslint-parser": "^0.6.0",
         "typescript": "^4.8.4",
         "vsce": "^2.15.0"
     },
