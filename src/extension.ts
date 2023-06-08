@@ -61,17 +61,21 @@ export async function activate(context: ExtensionContext) {
     }
 
     const supportedFiles = await getGlobPatterns();
-    const watchTargets = [
-        supportedFiles.npm.packagejson,
-        supportedFiles.pypi.pipfile,
-        supportedFiles.pypi.requirements,
-        supportedFiles.pypi.pyproject
-    ].map(info => info.pattern);
+
+    const watchTargets = {
+        npm: ['packagejson'],
+        pypi: ['pipfile', 'requirements', 'pyproject']
+    }
+
+    const watchTargetValues = Object.entries(watchTargets).flatMap(([eco, names]) => names.map(name => ({
+        eco,
+        ...supportedFiles[eco][name]
+    })));
 
     context.subscriptions.push(
         diagnostics,
         await initPython(),
-        ...watchTargets.map(target => watch(target, watchHandler))
+        ...watchTargetValues.map(target => watch(target.pattern, watchHandler))
     );
     const runAll = () => {
         if (workspace.workspaceFolders) {
@@ -99,12 +103,11 @@ export async function activate(context: ExtensionContext) {
             }
         })
     )
-    async function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
+    async function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0], eco: string) {
         const externals = await parseExternals(doc)
-        if (!externals) {
-            return
-        }
-        const issuesForSource = radixMergeReportIssues(report)
+        if (!externals) return
+        const issuesForSource = radixMergeReportIssues(report).get(eco)
+        if (!issuesForSource) return
         let ranges: Record<string, Array<vscode.Range>> = Object.create(null);
         let prioritizedRanges: Record<string, { range: vscode.Range, prioritize: boolean }> = Object.create(null)
         function pushRelatedRange(name: string, range: vscode.Range) {
@@ -172,56 +175,60 @@ export async function activate(context: ExtensionContext) {
             diagnostics.clear()
             return
         }
-        const files = (await Promise.all(watchTargets.map(pattern =>
-            workspace.findFiles(`**/${pattern}`, '**/{node_modules,.git}/**')
-        ))).flat();
-        const workspaceFiles = files.filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
-        if (workspaceFiles.length === 0) {
+        const files = (await Promise.all(watchTargetValues.map(async tgt => ({
+            eco: tgt.eco,
+            files: (await workspace.findFiles(`**/${tgt.pattern}`, '**/{node_modules,.git}/**'))
+                .filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
+        })))).filter(tgt => tgt.files.length);
+        if (files.length === 0) {
             return
         }
-        for (const textDocumentURI of workspaceFiles) {
-            const src = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
-            const relevantIssues = (await normalizeReportAndLocations(currentReport, {
-                getText() {
-                    return src
-                },
-                fileName: textDocumentURI.fsPath,
-                languageId: textDocumentURI.fsPath.endsWith('.json')
-                    ? 'json'
-                    : textDocumentURI.fsPath.endsWith('.toml')
-                        ? 'toml'
-                        : 'plaintext'
-            }))?.sort(sortIssues)
-            if (relevantIssues && relevantIssues.length) {
-                const diagnosticsToShow = (await Promise.all(relevantIssues.map(
-                    async (issue) => {
-                        const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
-                        if (!should) {
-                            return null
-                        }
-                        const diag = new vscode.Diagnostic(
-                            issue.range,
-                            issue.description, 
-                            issue.severity === 'low' ?
-                                vscode.DiagnosticSeverity.Information :
-                                issue.severity !== 'critical' ?
-                                    vscode.DiagnosticSeverity.Warning :
-                                    vscode.DiagnosticSeverity.Error
-                        )
-                        diag.relatedInformation = issue.related.map(
-                            (r) => new vscode.DiagnosticRelatedInformation(
-                                new vscode.Location(textDocumentURI, r),
-                                'installation reference'
+        for (const tgt of files) {
+            for (const textDocumentURI of tgt.files) {
+                const src = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
+                const relevantIssues = (await normalizeReportAndLocations(currentReport, {
+                    getText() {
+                        return src
+                    },
+                    fileName: textDocumentURI.fsPath,
+                    languageId: textDocumentURI.fsPath.endsWith('.json')
+                        ? 'json'
+                        : textDocumentURI.fsPath.endsWith('.toml')
+                            ? 'toml'
+                            : 'plaintext'
+                }, tgt.eco))?.sort(sortIssues)
+                if (relevantIssues && relevantIssues.length) {
+                    const diagnosticsToShow = (await Promise.all(relevantIssues.map(
+                        async (issue) => {
+                            const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
+                            if (!should) {
+                                return null
+                            }
+                            const diag = new vscode.Diagnostic(
+                                issue.range,
+                                issue.description, 
+                                issue.severity === 'low' ?
+                                    vscode.DiagnosticSeverity.Information :
+                                    issue.severity !== 'critical' ?
+                                        vscode.DiagnosticSeverity.Warning :
+                                        vscode.DiagnosticSeverity.Error
                             )
-                        )
-                        diag.source = DIAGNOSTIC_SOURCE_STR
-                        diag.code = `${issue.type}, ${issue.pkgName}`
-                        return diag
-                    }
-                ))).filter(x => !!x) as vscode.Diagnostic[]
-                diagnostics.set(textDocumentURI, diagnosticsToShow)
+                            diag.relatedInformation = issue.related.map(
+                                (r) => new vscode.DiagnosticRelatedInformation(
+                                    new vscode.Location(textDocumentURI, r),
+                                    'installation reference'
+                                )
+                            )
+                            diag.source = DIAGNOSTIC_SOURCE_STR
+                            diag.code = `${issue.type}, ${issue.pkgName}`
+                            return diag
+                        }
+                    ))).filter(x => !!x) as vscode.Diagnostic[]
+                    diagnostics.set(textDocumentURI, diagnosticsToShow)
+                }
             }
         }
+        
     }
 
     const pkgActionsHandlers = await Promise.all([

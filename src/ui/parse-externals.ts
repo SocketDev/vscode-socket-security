@@ -681,11 +681,12 @@ print(json.dumps(xrefs))`]);
                     path[2] === 'group' &&
                     path[4] === 'dependencies';
                 if ((oldDep || groupDep) && typeof path[path.length - 1] === 'string') {
+                    const loc = key.parent.type === 'TOMLTable' ? key.loc : key.parent.loc;
                     results.push({
                         name: path[path.length - 1] as string,
                         range: new vscode.Range(
-                            new vscode.Position(key.loc.start.line - 1, key.loc.start.column),
-                            new vscode.Position(key.loc.end.line - 1, key.loc.end.column)
+                            new vscode.Position(loc.start.line - 1, loc.start.column),
+                            new vscode.Position(loc.end.line - 1, loc.end.column)
                         )
                     });
                 }
@@ -703,11 +704,12 @@ print(json.dumps(xrefs))`]);
                     ['packages', 'dev-packages'].includes(path[0] as string) &&
                     typeof path[1] === 'string'
                 ) {
+                    const loc = key.parent.type === 'TOMLTable' ? key.loc : key.parent.loc;
                     results.push({
                         name: path[1] as string,
                         range: new vscode.Range(
-                            new vscode.Position(key.loc.start.line - 1, key.loc.start.column),
-                            new vscode.Position(key.loc.end.line - 1, key.loc.end.column)
+                            new vscode.Position(loc.start.line - 1, loc.start.column),
+                            new vscode.Position(loc.end.line - 1, loc.end.column)
                         )
                     });
                 }
@@ -724,7 +726,7 @@ print(json.dumps(xrefs))`]);
                         name: match[1],
                         range: new vscode.Range(
                             new vscode.Position(i, match.index),
-                            new vscode.Position(i, match.index + match[0].length)
+                            new vscode.Position(i, match.index + line.length)
                         )
                     });
                 }

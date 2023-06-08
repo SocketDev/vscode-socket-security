@@ -157,8 +157,9 @@ export function activate(
                 return
             }
             const issues = radixMergeReportIssues(socketReport)
+            const ecoIssues = issues.get(eco)
             for (const {name, range} of externals) {
-                const pkgIssues = issues.get(name)
+                const pkgIssues = ecoIssues?.get(name)
                 if (!pkgIssues || pkgIssues.size === 0) {
                     continue
                 }

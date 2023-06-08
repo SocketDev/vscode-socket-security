@@ -25,37 +25,41 @@ export type SocketReport = {
     }>
 };
 
+type IssueEco = string
 type IssueSource = string
 type IssueSeverity = string
 type IssueType = string
 type IssueDescription = string
 type IssueRadixTrie = Map<
-    IssueSource, Map<
-        IssueSeverity,  Map<
-            IssueType, Set<IssueDescription>
+    IssueEco, Map<
+        IssueSource, Map<
+            IssueSeverity,  Map<
+                IssueType, Set<IssueDescription>
+            >
         >
     >
 >
 export function radixMergeReportIssues(report: SocketReport): IssueRadixTrie {
-    let issuesForSource: IssueRadixTrie = new Map()
+    let issuesForEco: IssueRadixTrie = new Map()
     for (const issue of report.issues) {
         const type = issue.type
         const description = issue.value.description
         const severity = issue.value.severity
         for (const issueLoc of issue.value.locations) {
-            if (issueLoc.type === 'npm') {
-                const depSource = issueLoc.value.package
-                const existingIssuesBySeverity = issuesForSource.get(depSource) ?? new Map()
-                issuesForSource.set(depSource, existingIssuesBySeverity)
-                const existingIssuesByType = existingIssuesBySeverity.get(severity) ?? new Map()
-                existingIssuesBySeverity.set(severity, existingIssuesByType)
-                const existingIssuesByDescription = existingIssuesByType.get(type) ?? new Set()
-                existingIssuesByType.set(type, existingIssuesByDescription)
-                existingIssuesByDescription.add(description);
-            }
+            const depEco = issueLoc.type;
+            const existingIssuesByEco = issuesForEco.get(depEco) ?? new Map()
+            issuesForEco.set(depEco, existingIssuesByEco)
+            const depSource = issueLoc.value.package
+            const existingIssuesBySeverity = existingIssuesByEco.get(depSource) ?? new Map()
+            existingIssuesByEco.set(depSource, existingIssuesBySeverity)
+            const existingIssuesByType = existingIssuesBySeverity.get(severity) ?? new Map()
+            existingIssuesBySeverity.set(severity, existingIssuesByType)
+            const existingIssuesByDescription = existingIssuesByType.get(type) ?? new Set()
+            existingIssuesByType.set(type, existingIssuesByDescription)
+            existingIssuesByDescription.add(description);
         }
     }
-    return issuesForSource
+    return issuesForEco
 }
 
 // type ReportEvent = {uri: string, report: SocketReport}
