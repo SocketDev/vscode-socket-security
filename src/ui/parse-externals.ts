@@ -5,8 +5,10 @@ import micromatch from 'micromatch';
 import path from 'node:path';
 import { text } from 'node:stream/consumers';
 import jsonToAST from 'json-to-ast';
+import * as toml from 'toml-eslint-parser';
 import { getPythonInterpreter } from '../data/python-interpreter';
 import { getGlobPatterns } from '../data/glob-patterns';
+import { traverseTOMLKeys } from '../util';
 
 type ExternalRef = {
     name: string,
@@ -574,16 +576,6 @@ print(json.dumps(xrefs))`]);
                 new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
             ]);
             if (!output) return null;
-            const result = JSON.parse(output, (key, value) => {
-                if (key === 'range') {
-                    return new vscode.Range(
-                        new vscode.Position(value.start.line, value.start.character),
-                        new vscode.Position(value.end.line, value.end.character)
-                    );
-                }
-                return value;
-            });
-            console.log(result);
             return JSON.parse(output, (key, value) => {
                 if (key === 'range') {
                     return new vscode.Range(
@@ -594,7 +586,6 @@ print(json.dumps(xrefs))`]);
                 return value;
             });
         } else {
-            const xrefs: ExternalRef[] = [];
             // fallback for web/whenever Python interpreter not available
             const pyImportRE = /(?<=(?:^|\n)\s*)(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)(?=\s*(?:$|\n))/g;
             const pyDynamicImportRE = /(?:__import__|import_module)\((?:"""(.+?)"""|'''(.+?)'''|"(.+?)"|'(.+?)'|)\)/g;
@@ -609,7 +600,7 @@ print(json.dumps(xrefs))`]);
                 const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
                 const range = new vscode.Range(startLine, startCol, endLine, endCol);
                 for (const name of names) {
-                    xrefs.push({ name, range });
+                    results.push({ name, range });
                 }
             }
             for (let nl = 0; match = pyDynamicImportRE.exec(src);) {
@@ -619,9 +610,8 @@ print(json.dumps(xrefs))`]);
                 while (lineChars[nl] <= match.index + match[0].length) ++nl;
                 const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
                 const range = new vscode.Range(startLine, startCol, endLine, endCol);
-                xrefs.push({ name, range });
+                results.push({ name, range });
             }
-            return xrefs;
         }
     } else {
         const basename = path.basename(doc.fileName);
@@ -631,7 +621,7 @@ print(json.dumps(xrefs))`]);
                 loc: true
             })
             if (pkg.type !== 'Object') {
-                return [];
+                return null;
             }
             for (const pkgField of pkg.children) {
                 if (pkgField.key.value === 'dependencies' ||
@@ -675,11 +665,70 @@ print(json.dumps(xrefs))`]);
     
             }
         } else if (basename === 'pyproject.toml') {
-            // TODO
+            let parsed: toml.AST.TOMLProgram;
+            try {
+                parsed = toml.parseTOML(src);
+            } catch (err) {
+                return null;
+            }
+            traverseTOMLKeys(parsed, (key, path) => {
+                const inPoetry = path.length > 2 && 
+                    path[0] === 'tool' &&
+                    path[1] === 'poetry';
+                const oldDep = inPoetry && path.length === 4 &&
+                    ['dependencies', 'dev-dependencies'].includes(path[2] as string);
+                const groupDep = inPoetry && path.length === 6 &&
+                    path[2] === 'group' &&
+                    path[4] === 'dependencies';
+                if ((oldDep || groupDep) && typeof path[path.length - 1] === 'string') {
+                    results.push({
+                        name: path[path.length - 1] as string,
+                        range: new vscode.Range(
+                            new vscode.Position(key.loc.start.line - 1, key.loc.start.column),
+                            new vscode.Position(key.loc.end.line - 1, key.loc.end.column)
+                        )
+                    });
+                }
+            });
         } else if (basename === 'Pipfile') {
-            // TODO
+            let parsed: toml.AST.TOMLProgram;
+            try {
+                parsed = toml.parseTOML(src);
+            } catch (err) {
+                return null;
+            }
+            traverseTOMLKeys(parsed, (key, path) => {
+                if (
+                    path.length === 2 &&
+                    ['packages', 'dev-packages'].includes(path[0] as string) &&
+                    typeof path[1] === 'string'
+                ) {
+                    results.push({
+                        name: path[1] as string,
+                        range: new vscode.Range(
+                            new vscode.Position(key.loc.start.line - 1, key.loc.start.column),
+                            new vscode.Position(key.loc.end.line - 1, key.loc.end.column)
+                        )
+                    });
+                }
+            });
         } else if (micromatch.isMatch(basename, globPatterns.pypi.requirements.pattern)) {
-            // TODO
+            const commentRE = /(\s|^)#.*/;
+            const lines = src.split('\n').map(line => line.replace(commentRE, ''));
+            const nameRE = /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i;
+            for (let i = 0; i < lines.length; ++i) {
+                const line = lines[i];
+                const match = nameRE.exec(line);
+                if (match) {
+                    results.push({
+                        name: match[1],
+                        range: new vscode.Range(
+                            new vscode.Position(i, match.index),
+                            new vscode.Position(i, match.index + match[0].length)
+                        )
+                    });
+                }
+            }
         }
     }
     return results
