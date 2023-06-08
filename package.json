@@ -138,6 +138,7 @@
         "formdata-node": "^5.0.1",
         "ini": "^3.0.1",
         "json-to-ast": "^2.1.0",
+        "micromatch": "^4.0.5",
         "octokit": "^2.0.10",
         "safe-stable-stringify": "^2.4.1",
         "semver": "^7.3.8",

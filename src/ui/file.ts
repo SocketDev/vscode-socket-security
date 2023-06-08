@@ -27,7 +27,7 @@ let isBuiltin = (name: string, eco: string): boolean => {
 // TODO: cache by detecting open editors and closing
 export function activate(
     context: vscode.ExtensionContext,
-    reports: ReturnType<(typeof import('../data/report'))['activate']>,
+    reports: Awaited<ReturnType<(typeof import('../data/report'))['activate']>>,
     socketConfig: Awaited<ReturnType<(typeof import('../data/socket-yaml'))['activate']>>,
     editorConfig: ReturnType<typeof import('../data/editor-config')['activate']>
 ) {

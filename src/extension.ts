@@ -5,6 +5,9 @@ import * as vscode from 'vscode';
 import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
 import * as pkgJSON from './ui/package-json';
+import * as pyproject from './ui/pyproject';
+import * as pipfile from './ui/pipfile';
+import * as requirements from './ui/requirements';
 import * as report from './data/report'
 import { radixMergeReportIssues, SocketReport } from './data/report';
 import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
@@ -59,8 +62,10 @@ export async function activate(context: ExtensionContext) {
 
     const supportedFiles = await getGlobPatterns();
     const watchTargets = [
-        ...Object.values(supportedFiles.npm),
-        ...Object.values(supportedFiles.pypi)
+        supportedFiles.npm.packagejson,
+        supportedFiles.pypi.pipfile,
+        supportedFiles.pypi.requirements,
+        supportedFiles.pypi.pyproject
     ].map(info => info.pattern);
 
     context.subscriptions.push(
@@ -167,19 +172,25 @@ export async function activate(context: ExtensionContext) {
             diagnostics.clear()
             return
         }
-        const pkgs = await workspace.findFiles('**/package{.json}', '**/node_modules/**')
-        const workspacePkgs = pkgs.filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
-        if (workspacePkgs.length === 0) {
+        const files = (await Promise.all(watchTargets.map(pattern =>
+            workspace.findFiles(`**/${pattern}`, '**/{node_modules,.git}/**')
+        ))).flat();
+        const workspaceFiles = files.filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
+        if (workspaceFiles.length === 0) {
             return
         }
-        for (const textDocumentURI of workspacePkgs) {
-            const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
+        for (const textDocumentURI of workspaceFiles) {
+            const src = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
             const relevantIssues = (await normalizeReportAndLocations(currentReport, {
                 getText() {
-                    return packageJSONSource
+                    return src
                 },
                 fileName: textDocumentURI.fsPath,
-                languageId: 'json'
+                languageId: textDocumentURI.fsPath.endsWith('.json')
+                    ? 'json'
+                    : textDocumentURI.fsPath.endsWith('.toml')
+                        ? 'toml'
+                        : 'plaintext'
             }))?.sort(sortIssues)
             if (relevantIssues && relevantIssues.length) {
                 const diagnosticsToShow = (await Promise.all(relevantIssues.map(
@@ -213,8 +224,14 @@ export async function activate(context: ExtensionContext) {
         }
     }
 
-    context.subscriptions.push(
+    const pkgActionsHandlers = await Promise.all([
         pkgJSON.registerCodeLensProvider(),
-        pkgJSON.registerCodeActionsProvider()
-    )
+        pkgJSON.registerCodeActionsProvider(),
+        pyproject.registerCodeLensProvider(),
+        pyproject.registerCodeActionsProvider(),
+        pipfile.registerCodeActionsProvider(),
+        requirements.registerCodeActionsProvider()
+    ])
+
+    context.subscriptions.push(...pkgActionsHandlers)
 }
