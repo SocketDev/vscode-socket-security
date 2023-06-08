@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import * as parser from '@babel/parser'
 import * as astTypes from 'ast-types';
+import micromatch from 'micromatch';
 import path from 'node:path';
 import { text } from 'node:stream/consumers';
 import jsonToAST from 'json-to-ast';
 import { getPythonInterpreter } from '../data/python-interpreter';
+import { getGlobPatterns } from '../data/glob-patterns';
 
 type ExternalRef = {
     name: string,
@@ -621,53 +623,63 @@ print(json.dumps(xrefs))`]);
             }
             return xrefs;
         }
-    } else if (path.basename(doc.fileName) === 'package.json') {
-        const pkg = jsonToAST(src, {
-            loc: true
-        })
-        if (pkg.type !== 'Object') {
-            return [];
-        }
-        for (const pkgField of pkg.children) {
-            if (pkgField.key.value === 'dependencies' ||
-                pkgField.key.value === 'devDependencies' ||
-                pkgField.key.value === 'peerDependencies' ||
-                pkgField.key.value === 'optionalDependencies'
-            ) {
-                if (pkgField.value.type === 'Object') {
-                    for (const v of pkgField.value.children) {
-                        const { loc } = v;
-                        if (loc) {
-                            results.push({
-                                name: v.key.value,
-                                range: rangeForJSONAstLoc(loc),
-                                prioritize: true
-                            })
-                        }
-                    }
-                }
+    } else {
+        const basename = path.basename(doc.fileName);
+        const globPatterns = await getGlobPatterns();
+        if (basename === 'package.json') {
+            const pkg = jsonToAST(src, {
+                loc: true
+            })
+            if (pkg.type !== 'Object') {
+                return [];
             }
-            if (pkgField.key.value === 'bundledDependencies') {
-                if (pkgField.value.type === 'Array') {
-                    for (const node of pkgField.value.children) {
-                        if (node.type === 'Literal' && typeof node.value === 'string') {
-                            const {loc} = node
+            for (const pkgField of pkg.children) {
+                if (pkgField.key.value === 'dependencies' ||
+                    pkgField.key.value === 'devDependencies' ||
+                    pkgField.key.value === 'peerDependencies' ||
+                    pkgField.key.value === 'optionalDependencies'
+                ) {
+                    if (pkgField.value.type === 'Object') {
+                        for (const v of pkgField.value.children) {
+                            const { loc } = v;
                             if (loc) {
                                 results.push({
-                                    name: node.value,
-                                    range: rangeForJSONAstLoc(loc)
+                                    name: v.key.value,
+                                    range: rangeForJSONAstLoc(loc),
+                                    prioritize: true
                                 })
                             }
                         }
                     }
                 }
-            }
-            if (pkgField.key.value === 'overrides') {
-                if (pkgField.value.type === 'Object') {
-                    parsePkgOverrideExternals(pkgField.value, results)
+                if (pkgField.key.value === 'bundledDependencies') {
+                    if (pkgField.value.type === 'Array') {
+                        for (const node of pkgField.value.children) {
+                            if (node.type === 'Literal' && typeof node.value === 'string') {
+                                const {loc} = node
+                                if (loc) {
+                                    results.push({
+                                        name: node.value,
+                                        range: rangeForJSONAstLoc(loc)
+                                    })
+                                }
+                            }
+                        }
+                    }
                 }
+                if (pkgField.key.value === 'overrides') {
+                    if (pkgField.value.type === 'Object') {
+                        parsePkgOverrideExternals(pkgField.value, results)
+                    }
+                }
+    
             }
-
+        } else if (basename === 'pyproject.toml') {
+            // TODO
+        } else if (basename === 'Pipfile') {
+            // TODO
+        } else if (micromatch.isMatch(basename, globPatterns.pypi.requirements.pattern)) {
+            // TODO
         }
     }
     return results
