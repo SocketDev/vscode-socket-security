@@ -617,7 +617,7 @@ print(json.dumps(xrefs))`]);
         const basename = path.basename(doc.fileName);
         const globPatterns = await getGlobPatterns();
         const pep508RE = /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i;
-        if (basename === 'package.json') {
+        if (micromatch.isMatch(basename, globPatterns.npm.packagejson.pattern)) {
             const pkg = jsonToAST(src, {
                 loc: true
             })
@@ -665,7 +665,7 @@ print(json.dumps(xrefs))`]);
                 }
     
             }
-        } else if (basename === 'pyproject.toml') {
+        } else if (micromatch.isMatch(basename, globPatterns.pypi.pyproject.pattern)) {
             let parsed: toml.AST.TOMLProgram;
             try {
                 parsed = toml.parseTOML(src);
@@ -716,7 +716,7 @@ print(json.dumps(xrefs))`]);
                     }
                 }
             });
-        } else if (basename === 'Pipfile') {
+        } else if (micromatch.isMatch(basename, globPatterns.pypi.pipfile.pattern)) {
             let parsed: toml.AST.TOMLProgram;
             try {
                 parsed = toml.parseTOML(src);

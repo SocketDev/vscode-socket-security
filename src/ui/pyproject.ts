@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import toml from 'toml-eslint-parser'
+import * as toml from 'toml-eslint-parser'
 import { generateLens, provideCodeActions } from './dep-file';
 import { traverseTOMLKeys } from '../util';
+import { getGlobPatterns } from '../data/glob-patterns';
 
 function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
     const pyprojectSource = document.getText()
@@ -32,9 +33,9 @@ function provideCodeLenses(document: vscode.TextDocument, token: vscode.Cancella
 }
 
 export async function registerCodeLensProvider() {
+    const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeLensProvider({
-        language: 'toml',
-        pattern: '**/pyproject.toml',
+        pattern: `**/${globPatterns.pypi.pyproject.pattern}`,
         scheme: undefined
     }, {
         provideCodeLenses
@@ -42,9 +43,9 @@ export async function registerCodeLensProvider() {
 }
 
 export async function registerCodeActionsProvider() {
+    const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeActionsProvider({
-        language: 'toml',
-        pattern: '**/pyproject.toml',
+        pattern: `**/${globPatterns.pypi.pyproject.pattern}`,
         scheme: undefined
     }, {
         provideCodeActions

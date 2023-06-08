@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { provideCodeActions } from './dep-file';
+import { getGlobPatterns } from '../data/glob-patterns';
 
 export async function registerCodeActionsProvider() {
+    const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeActionsProvider({
-        language: 'toml',
-        pattern: '**/Pipfile',
+        pattern: `**/${globPatterns.pypi.pipfile.pattern}`,
         scheme: undefined
     }, {
         provideCodeActions

@@ -33,11 +33,11 @@
     },
     "icon": "socket-square.png",
     "activationEvents": [
-        "workspaceContains:**/package.json",
-        "workspaceContains:**/socket.yml",
-        "workspaceContains:**/requirements.txt",
-        "workspaceContains:**/pyproject.toml",
-        "workspaceContains:**/Pipfile",
+        "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
+        "workspaceContains:**/[sS][oO][cC][kK][eE][tT].[yY][mM][lL]",
+        "workspaceContains:**/{*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]}",
+        "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
+        "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
         "onLanguage:python",
         "onLanguage:javascript"
     ],

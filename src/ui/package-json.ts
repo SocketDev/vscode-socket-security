@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import jsonToAST from 'json-to-ast'
 import { generateLens, provideCodeActions } from './dep-file';
+import { getGlobPatterns } from '../data/glob-patterns';
 
 function provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
     const packageJSONSource = document.getText()
@@ -30,9 +31,10 @@ function provideCodeLenses(document: vscode.TextDocument, token: vscode.Cancella
 }
 
 export async function registerCodeLensProvider() {
+    const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeLensProvider({
         language: 'json',
-        pattern: '**/package.json',
+        pattern: `**/${globPatterns.npm.packagejson.pattern}`,
         scheme: undefined
     }, {
         provideCodeLenses
@@ -40,9 +42,10 @@ export async function registerCodeLensProvider() {
 }
 
 export async function registerCodeActionsProvider() {
+    const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeActionsProvider({
         language: 'json',
-        pattern: '**/package.json',
+        pattern: `**/${globPatterns.npm.packagejson.pattern}`,
         scheme: undefined
     }, {
         provideCodeActions
