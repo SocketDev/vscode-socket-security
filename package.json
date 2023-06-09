@@ -43,7 +43,6 @@
     ],
     "type": "commonjs",
     "main": "./out/main.js",
-    "browser": "./out/main.js",
     "homepage": "https://socket.dev",
     "contributes": {
         "commands": [
