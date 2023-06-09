@@ -74,6 +74,7 @@ export function activate(
         if (hoversAndCount) {
             if (hoversAndCount.refCount === 1) {
                 srcToHoversAndCount.delete(doc.fileName);
+                urlToSrc.delete(doc.fileName);
             } else {
                 hoversAndCount.refCount--;
             }
@@ -97,6 +98,10 @@ export function activate(
     function getDepscore(pkgName: string, eco: string, signal: AbortSignal): Promise<PackageScore> {
         if (signal.aborted) {
             return Promise.reject('Aborted');
+        }
+        if (eco === 'pypi') {
+            // TODO: implement PyPI depscores in backend
+            return Promise.reject('Python depscores unavailable');
         }
         const cacheKey = `${eco}.${pkgName}`
         const existing = depscoreCache.get(cacheKey)

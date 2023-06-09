@@ -256,7 +256,7 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
             // possible future TODO: use python tokenizer with error-correcting
             // indents and manually parse - better perf + accuracy
             const proc = childProcess.spawn(pythonInterpreter, ['-c', `
-import ast, tokenize, token, json, sys, io
+import ast, tokenize, token, json, sys, io, importlib
 
 src = u${JSON.stringify(src)}
 src_lines = src.split(u'\\n')
@@ -570,7 +570,21 @@ while True:
 visitor = ImportFinder()
 visitor.visit(full_ast)
 save_pending_xref(len(src_lines) - 1, len(src_lines[-1]) - 1)
-print(json.dumps(xrefs))`]);
+
+try:
+    metadata = importlib.import_module("importlib.metadata")
+    namemap = metadata.packages_distributions()
+except:
+    namemap = {}
+
+remapped_xrefs = []
+for xref in xrefs:
+    top_pkg = xref["name"].split(".")[0]
+    for name in namemap.get(top_pkg, [top_pkg]):
+        copied_xref = dict(xref)
+        copied_xref["name"] = name
+        remapped_xrefs.append(copied_xref)
+print(json.dumps(remapped_xrefs))`]);
             const output = await Promise.race([
                 text(proc.stdout),
                 new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
@@ -594,13 +608,13 @@ print(json.dumps(xrefs))`]);
             let match: RegExpExecArray | null = null;
             for (let nl = 0; match = pyImportRE.exec(src);) {
                 while (lineChars[nl] <= match.index) ++nl;
-                const names = match[1] ? match[1].split(',').map(v => v.trim()) : match[2];
+                const names = match[1] ? match[1].split(',').map(v => v.trim()) : [match[2]];
                 const startLine = nl, startCol = match.index - (nl && lineChars[nl - 1]);
                 while (lineChars[nl] <= match.index + match[0].length) ++nl;
                 const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
                 const range = new vscode.Range(startLine, startCol, endLine, endCol);
                 for (const name of names) {
-                    results.push({ name, range });
+                    results.push({ name: name.split('.')[0], range });
                 }
             }
             for (let nl = 0; match = pyDynamicImportRE.exec(src);) {
@@ -610,7 +624,7 @@ print(json.dumps(xrefs))`]);
                 while (lineChars[nl] <= match.index + match[0].length) ++nl;
                 const endLine = nl, endCol = match.index - (nl && lineChars[nl - 1]);
                 const range = new vscode.Range(startLine, startCol, endLine, endCol);
-                results.push({ name, range });
+                results.push({ name: name.split('.')[0], range });
             }
         }
     } else {

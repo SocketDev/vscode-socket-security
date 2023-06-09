@@ -165,6 +165,10 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
     }
     function pyprojectCacheKey(src: Buffer): PackageRootCacheKey {
         const value = getStaticTOMLValue(parseTOML(src.toString())) as {
+            project?: {
+                dependencies?: string[],
+                'optional-dependencies': string[]
+            };
             tool?: {
                 poetry?: {
                     dependencies?: Record<string, unknown>,
@@ -176,9 +180,11 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             }
         };
         return (stableStringify.stringify({
-            dependencies: value.tool?.poetry?.dependencies,
-            devDependencies: value.tool?.poetry?.['dev-dependencies'],
-            groupDependencies: Object.values(
+            dependencies: value.project?.dependencies,
+            optionalDependencies: value.project?.["optional-dependencies"],
+            poetryDependencies: value.tool?.poetry?.dependencies,
+            poetryDevDependencies: value.tool?.poetry?.['dev-dependencies'],
+            poetryGroupDependencies: Object.values(
                 value.tool?.poetry?.group || {}
             ).map(group => group?.dependencies)
         }) ?? '') as PackageRootCacheKey;
