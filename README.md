@@ -4,19 +4,21 @@ This extension provides automatic reporting of security concerns from [Socket Se
 
 ## Ahead of Package Installation
 
-* `import` and `require` in Javascript are detected and given summary scores to show concerns with configurable overlays. These overlays will persist even after package installation.
+* Package imports in JavaScript and Python are detected and given summary scores to show concerns with configurable overlays. These overlays will persist even after package installation.
+
+* Socket detects multiple alternate forms of package imports, including dynamic `import()` or `require` in JavaScript or `importlib.import_module` in Python.
 
 ## After Package Installation
 
-Workspaces are against Socket's reporting utilities upon detection of `package.json` files. Note these also run prior to actual installation as the presence in `package.json` is enough.
+Workspaces are run against Socket's reporting utilities upon detection of JavaScript or Python dependencies. Note these also run prior to actual installation: presence in `package.json`, `requirements.txt`, or any other supported file is enough.
 
-* `package.json` files and packages listed within are detected and run against more thorough issue reporting to see exact issues. These are listed in the "Problems" tab for easy access.
+* Package dependency files like `package.json` and `pyproject.toml` are run against more thorough issue reporting to see exact issues for each dependency. These are listed in the "Problems" tab for easy access.
 
-* `import` and `require` of packages with issues found in reporting are provided hovers which also summarize their issues.
+* You can hover over package imports in JavaScript or Python code to see a summary of their issues.
 
 ## Pull Requests
 
-* Simplified github application installation is provided as a code lense inside of `package.json` files by detecting the user/organization and setting up the installation workflow automatically with a simple click. These reports are more fully featured and include things such as transitive issue aggregation and diffing from one commit to another. If you want these features please install [the github app](https://github.com/marketplace/socket-security).
+* Simplified GitHub application installation is available as a code lens. It detects your username/organization and sets up the installation workflow automatically with a simple click. These reports are more extensive than the ones provided within the extension and include things such as transitive issue aggregation and diffing from one commit to another. If you want these features, please install [the GitHub app](https://github.com/marketplace/socket-security).
 
 # Team Guide
 

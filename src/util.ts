@@ -1,4 +1,5 @@
 import type { SocketYml } from '@socketsecurity/config';
+import * as toml from 'toml-eslint-parser';
 import * as vscode from 'vscode';
 
 export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
@@ -234,4 +235,27 @@ export class WorkspaceData<Data> {
             }
         }
     }
+}
+
+export function traverseTOMLKeys(src: toml.AST.TOMLProgram, cb: (key: toml.AST.TOMLKey, path: (string | number)[]) => unknown) {
+    const curPath: (string | number)[] = [];
+
+    toml.traverseNodes(src, {
+        enterNode(node) {
+            if (node.type === 'TOMLKeyValue') {
+                curPath.push(...node.key.keys.map(k => k.type == 'TOMLBare' ? k.name : k.value));
+            } else if (node.type === 'TOMLTable') {
+                curPath.push(...node.resolvedKey);
+            } else if (node.type === 'TOMLKey') {
+                cb(node, curPath);
+            }
+        },
+        leaveNode(node) {
+            if (node.type === 'TOMLKeyValue') {
+                curPath.length -= node.key.keys.length;
+            } else if (node.type === 'TOMLTable') {
+                curPath.length -= node.resolvedKey.length;
+            }
+        }
+    });
 }

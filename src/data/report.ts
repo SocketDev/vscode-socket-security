@@ -10,7 +10,9 @@ import { text } from 'node:stream/consumers';
 import { setTimeout } from 'node:timers/promises';
 import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceData } from '../util';
 import * as stableStringify from 'safe-stable-stringify';
-import watchers from '../fs-watchers'
+import watch, { SharedFilesystemWatcherHandler } from '../fs-watch'
+import { GlobPatterns, getGlobPatterns } from './glob-patterns';
+import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 
 export type SocketReport = {
     issues: Array<{
@@ -23,42 +25,46 @@ export type SocketReport = {
     }>
 };
 
+type IssueEco = string
 type IssueSource = string
 type IssueSeverity = string
 type IssueType = string
 type IssueDescription = string
 type IssueRadixTrie = Map<
-    IssueSource, Map<
-        IssueSeverity,  Map<
-            IssueType, Set<IssueDescription>
+    IssueEco, Map<
+        IssueSource, Map<
+            IssueSeverity,  Map<
+                IssueType, Set<IssueDescription>
+            >
         >
     >
 >
 export function radixMergeReportIssues(report: SocketReport): IssueRadixTrie {
-    let issuesForSource: IssueRadixTrie = new Map()
+    let issuesForEco: IssueRadixTrie = new Map()
     for (const issue of report.issues) {
         const type = issue.type
         const description = issue.value.description
         const severity = issue.value.severity
         for (const issueLoc of issue.value.locations) {
-            if (issueLoc.type === 'npm') {
-                const depSource = issueLoc.value.package
-                const existingIssuesBySeverity = issuesForSource.get(depSource) ?? new Map()
-                issuesForSource.set(depSource, existingIssuesBySeverity)
-                const existingIssuesByType = existingIssuesBySeverity.get(severity) ?? new Map()
-                existingIssuesBySeverity.set(severity, existingIssuesByType)
-                const existingIssuesByDescription = existingIssuesByType.get(type) ?? new Set()
-                existingIssuesByType.set(type, existingIssuesByDescription)
-                existingIssuesByDescription.add(description);
-            }
+            const depEco = issueLoc.type;
+            const existingIssuesByEco = issuesForEco.get(depEco) ?? new Map()
+            issuesForEco.set(depEco, existingIssuesByEco)
+            const depSource = issueLoc.value.package
+            const existingIssuesBySeverity = existingIssuesByEco.get(depSource) ?? new Map()
+            existingIssuesByEco.set(depSource, existingIssuesBySeverity)
+            const existingIssuesByType = existingIssuesBySeverity.get(severity) ?? new Map()
+            existingIssuesBySeverity.set(severity, existingIssuesByType)
+            const existingIssuesByDescription = existingIssuesByType.get(type) ?? new Set()
+            existingIssuesByType.set(type, existingIssuesByDescription)
+            existingIssuesByDescription.add(description);
         }
     }
-    return issuesForSource
+    return issuesForEco
 }
 
 // type ReportEvent = {uri: string, report: SocketReport}
 // type onReportHandler = (evt: ReportEvent) => void
-export function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
+export async function activate(context: vscode.ExtensionContext, disposables?: Array<vscode.Disposable>) {
     const status = vscode.window.createStatusBarItem(`${EXTENSION_PREFIX}.report`, vscode.StatusBarAlignment.Right)
     status.name = 'Socket Security'
     status.hide();
@@ -105,24 +111,33 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         }
     })
 
+    const reportWatcher: SharedFilesystemWatcherHandler = {
+        onDidChange(uri) {
+            runReport(uri)
+        },
+        onDidCreate(uri) {
+            runReport(uri)
+        },
+        onDidDelete(uri) {
+            knownPkgFiles.delete(uri.fsPath)
+            runReport(uri);
+        }
+    };
+
+    const supportedFiles = await getGlobPatterns();
+
+    const watchTargets = [
+        ...Object.values(supportedFiles.npm),
+        ...Object.values(supportedFiles.pypi)
+    ].map(info => info.pattern);
+
     addDisposablesTo(
         disposables,
-        watchers["package.json"].watch({
-            onDidChange(uri) {
-                runReport(uri)
-            },
-            onDidCreate(uri) {
-                runReport(uri)
-            },
-            onDidDelete(uri) {
-                knownPkgFiles.delete(uri.fsPath)
-                runReport(uri);
-            }
-        })
+        ...watchTargets.map(p => watch(p, reportWatcher))
     );
 
     type PackageRootCacheKey = string & { _tag: 'PackageRootCacheKey' }
-    function pkgJSONSrcToCacheKey(src: Buffer): PackageRootCacheKey {
+    function pkgJSONCacheKey(src: Buffer): PackageRootCacheKey {
         const {
             dependencies,
             devDependencies,
@@ -138,6 +153,49 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             optionalDependencies
         }) ?? '' ) as PackageRootCacheKey;
     }
+    function pipfileCacheKey(src: Buffer): PackageRootCacheKey {
+        const value = getStaticTOMLValue(parseTOML(src.toString())) as {
+            packages: Record<string, unknown>,
+            'dev-packages': Record<string, unknown>
+        };
+        return (stableStringify.stringify({
+            packages: value.packages,
+            devPackages: value['dev-packages']
+        }) ?? '') as PackageRootCacheKey;
+    }
+    function pyprojectCacheKey(src: Buffer): PackageRootCacheKey {
+        const value = getStaticTOMLValue(parseTOML(src.toString())) as {
+            project?: {
+                dependencies?: string[],
+                'optional-dependencies': string[]
+            };
+            tool?: {
+                poetry?: {
+                    dependencies?: Record<string, unknown>,
+                    'dev-dependencies'?: Record<string, unknown>,
+                    group?: Record<string, {
+                        dependencies?: Record<string, unknown>
+                    }>
+                }
+            }
+        };
+        return (stableStringify.stringify({
+            dependencies: value.project?.dependencies,
+            optionalDependencies: value.project?.["optional-dependencies"],
+            poetryDependencies: value.tool?.poetry?.dependencies,
+            poetryDevDependencies: value.tool?.poetry?.['dev-dependencies'],
+            poetryGroupDependencies: Object.values(
+                value.tool?.poetry?.group || {}
+            ).map(group => group?.dependencies)
+        }) ?? '') as PackageRootCacheKey;
+    }
+    function requirementsCacheKey(src: Buffer): PackageRootCacheKey {
+        const value = src.toString()
+            .split('\n')
+            .map(line => line.replace(/(\s|^)#.*/, ''))
+            .filter(line => line);
+        return value.sort().join('\n') as PackageRootCacheKey;
+    }
     function hashCacheKey(src: Buffer): PackageRootCacheKey {
         return createHash('sha256').update(src).digest('hex') as PackageRootCacheKey;
     }
@@ -145,9 +203,6 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
     const knownPkgFiles: Map<string, {
         cacheKey: PackageRootCacheKey,
     }> = new Map()
-
-    type GlobPatterns = Record<string, Record<string, { pattern: string }>>
-    let globPatternsPromise: Promise<GlobPatterns>
 
     async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => PackageRootCacheKey | null) {
         const uris = await workspace.findFiles(pattern, '**/{node_modules,.git}/**');
@@ -187,38 +242,27 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
             return
         }
 
-        if (!globPatternsPromise) {
-            const req = https.get(`https://api.socket.dev/v0/report/supported`, {
-                headers: {
-                    'Authorization': authorizationHeaderValue
-                }
-            })
-            req.end()
-            globPatternsPromise = (once(req, 'response') as Promise<[IncomingMessage]>)
-                .then(async ([res]) => {
-                    const result = JSON.parse(await text(res))
-                    if (res.statusCode !== 200) {
-                        throw new Error(result.error.message)
-                    }
-                    return result
-                })
-        }
-
         let globPatterns: GlobPatterns
         try {
-            globPatterns = await globPatternsPromise
+            globPatterns = await getGlobPatterns()
         } catch (e) {
             showErrorStatus(e);
             throw e;
         }
 
+        const dynamicPyFiles = Object.keys(globPatterns.pypi)
+            .filter(name => !['pipfile', 'pyproject', 'requirements'].includes(name))
+            .map(name => globPatterns.pypi[name]);
+
         const [
             pkgJSONFiles,
             ...allPyFiles
         ] = await Promise.all([
-            findWorkspaceFiles('**/package.json', pkgJSONSrcToCacheKey),
-            ...Object.values(globPatterns.pypi).map(p =>
-                // TODO: better python cache key generation
+            findWorkspaceFiles(`**/${globPatterns.npm.packagejson.pattern}`, pkgJSONCacheKey),
+            findWorkspaceFiles(`**/${globPatterns.pypi.pipfile.pattern}`, pipfileCacheKey),
+            findWorkspaceFiles(`**/${globPatterns.pypi.pyproject.pattern}`, pyprojectCacheKey),
+            findWorkspaceFiles(`**/${globPatterns.pypi.requirements.pattern}`, requirementsCacheKey),
+            ...dynamicPyFiles.map(p =>
                 findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey)
             )
         ])
@@ -226,7 +270,7 @@ export function activate(context: vscode.ExtensionContext, disposables?: Array<v
         const pkgJSONParents = new Set(pkgJSONFiles.map(file => uriParent(file.uri)))
         const npmLockFilePatterns = Object.keys(globPatterns.npm)
             .filter(name => name !== 'packagejson')
-            .map(name => globPatterns.npm[name as keyof typeof globPatterns.npm])
+            .map(name => globPatterns.npm[name])
 
         const npmLockFiles = (await Promise.all(
             npmLockFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))

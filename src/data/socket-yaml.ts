@@ -3,7 +3,7 @@ import { getDefaultConfig } from '@socketsecurity/config'
 import type { SocketYml } from '@socketsecurity/config'
 import { parseDocument, YAMLMap } from 'yaml'
 import { getWorkspaceFolderURI, addDisposablesTo, WorkspaceData } from '../util'
-import fsWatchers from '../fs-watchers';
+import watch from '../fs-watch';
 
 type EditorSocketYml = SocketYml & {
     enabled: boolean
@@ -179,7 +179,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
 
     addDisposablesTo(
         disposables,
-        fsWatchers['socket.yml'].watch({
+        watch('socket.yml', {
             onDidChange(e) {
                 parseAgain(e)
             },

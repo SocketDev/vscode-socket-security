@@ -2,17 +2,22 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import * as vscode from 'vscode';
-import { ExtensionContext, languages, workspace } from 'vscode';
+import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
-import { provideCodeActions as pkgJSONProvideCodeActions, provideCodeLenses as pkgJSONProvideCodeLenses } from './ui/package-json';
+import * as pkgJSON from './ui/package-json';
+import * as pyproject from './ui/pyproject';
+import * as pipfile from './ui/pipfile';
+import * as requirements from './ui/requirements';
 import * as report from './data/report'
 import { radixMergeReportIssues, SocketReport } from './data/report';
 import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
 import { installGithubApp } from './data/github';
-import * as javascriptFiles from './ui/javascript-file'
+import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
-import watchers, { SharedFilesystemWatcherHandler } from './fs-watchers';
+import watch, { SharedFilesystemWatcherHandler } from './fs-watch';
+import { initPython, onMSPythonInterpreterChange } from './data/python-interpreter';
+import { getGlobPatterns } from './data/glob-patterns';
 
 export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
@@ -33,7 +38,7 @@ export async function activate(context: ExtensionContext) {
         socketYaml.activate(context),
         report.activate(context)
     ])
-    javascriptFiles.activate(context, reports, socketConfig, config)
+    files.activate(context, reports, socketConfig, config)
     const diagnostics = vscode.languages.createDiagnosticCollection()
     const watchHandler: SharedFilesystemWatcherHandler = {
         onDidChange(f) {
@@ -55,16 +60,31 @@ export async function activate(context: ExtensionContext) {
         }
     }
 
+    const supportedFiles = await getGlobPatterns();
+
+    const watchTargets = {
+        npm: ['packagejson'],
+        pypi: ['pipfile', 'requirements', 'pyproject']
+    }
+
+    const watchTargetValues = Object.entries(watchTargets).flatMap(([eco, names]) => names.map(name => ({
+        eco,
+        ...supportedFiles[eco][name]
+    })));
+
     context.subscriptions.push(
         diagnostics,
-        watchers['package-lock.json'].watch(watchHandler),
-        watchers['package.json'].watch(watchHandler),
+        await initPython(),
+        ...watchTargetValues.map(target => watch(target.pattern, watchHandler))
     );
-    if (workspace.workspaceFolders) {
-        for (const workFolder of workspace.workspaceFolders) {
-            populateDiagnostics(workFolder.uri)
+    const runAll = () => {
+        if (workspace.workspaceFolders) {
+            for (const workFolder of workspace.workspaceFolders) {
+                populateDiagnostics(workFolder.uri)
+            }
         }
     }
+    runAll();
     context.subscriptions.push(
         reports.onReport(null, async (evt) => {
             populateDiagnostics(evt.uri)
@@ -74,21 +94,20 @@ export async function activate(context: ExtensionContext) {
         }),
         config.onDependentConfig([
             `${EXTENSION_PREFIX}.showAllIssueTypes`,
-            `${EXTENSION_PREFIX}.minIssueLevel`
-        ], () => {
-            if (workspace.workspaceFolders) {
-                for (const folder of workspace.workspaceFolders) {
-                    populateDiagnostics(folder.uri)
-                }
+            `${EXTENSION_PREFIX}.minIssueLevel`,
+            `${EXTENSION_PREFIX}.pythonInterpreter`
+        ], runAll),
+        onMSPythonInterpreterChange(() => {
+            if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('pythonInterpreter')) {
+                runAll();
             }
         })
     )
-    function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0]) {
-        const externals = parseExternals(doc)
-        if (!externals) {
-            return
-        }
-        const issuesForSource = radixMergeReportIssues(report)
+    async function normalizeReportAndLocations(report: SocketReport, doc: Parameters<typeof parseExternals>[0], eco: string) {
+        const externals = await parseExternals(doc)
+        if (!externals) return
+        const issuesForSource = radixMergeReportIssues(report).get(eco)
+        if (!issuesForSource) return
         let ranges: Record<string, Array<vscode.Range>> = Object.create(null);
         let prioritizedRanges: Record<string, { range: vscode.Range, prioritize: boolean }> = Object.create(null)
         function pushRelatedRange(name: string, range: vscode.Range) {
@@ -156,68 +175,70 @@ export async function activate(context: ExtensionContext) {
             diagnostics.clear()
             return
         }
-        const pkgs = await workspace.findFiles('**/package{.json}', '**/node_modules/**')
-        const workspacePkgs = pkgs.filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
-        if (workspacePkgs.length === 0) {
+        const files = (await Promise.all(watchTargetValues.map(async tgt => ({
+            eco: tgt.eco,
+            files: (await workspace.findFiles(`**/${tgt.pattern}`, '**/{node_modules,.git}/**'))
+                .filter(uri => getWorkspaceFolderURI(uri) === workspaceFolderURI)
+        })))).filter(tgt => tgt.files.length);
+        if (files.length === 0) {
             return
         }
-        for (const textDocumentURI of workspacePkgs) {
-            const packageJSONSource = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
-            const relevantIssues = normalizeReportAndLocations(currentReport, {
-                getText() {
-                    return packageJSONSource
-                },
-                fileName: textDocumentURI.fsPath,
-                languageId: 'json'
-            })?.sort(sortIssues)
-            if (relevantIssues && relevantIssues.length) {
-                const diagnosticsToShow = (await Promise.all(relevantIssues.map(
-                    async (issue) => {
-                        const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
-                        if (!should) {
-                            return null
-                        }
-                        const diag = new vscode.Diagnostic(
-                            issue.range,
-                            issue.description, 
-                            issue.severity === 'low' ?
-                                vscode.DiagnosticSeverity.Information :
-                                issue.severity !== 'critical' ?
-                                    vscode.DiagnosticSeverity.Warning :
-                                    vscode.DiagnosticSeverity.Error
-                        )
-                        diag.relatedInformation = issue.related.map(
-                            (r) => new vscode.DiagnosticRelatedInformation(
-                                new vscode.Location(textDocumentURI, r),
-                                'installation reference'
+        for (const tgt of files) {
+            for (const textDocumentURI of tgt.files) {
+                const src = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
+                const relevantIssues = (await normalizeReportAndLocations(currentReport, {
+                    getText() {
+                        return src
+                    },
+                    fileName: textDocumentURI.fsPath,
+                    languageId: textDocumentURI.fsPath.endsWith('.json')
+                        ? 'json'
+                        : textDocumentURI.fsPath.endsWith('.toml')
+                            ? 'toml'
+                            : 'plaintext'
+                }, tgt.eco))?.sort(sortIssues)
+                if (relevantIssues && relevantIssues.length) {
+                    const diagnosticsToShow = (await Promise.all(relevantIssues.map(
+                        async (issue) => {
+                            const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
+                            if (!should) {
+                                return null
+                            }
+                            const diag = new vscode.Diagnostic(
+                                issue.range,
+                                issue.description, 
+                                issue.severity === 'low' ?
+                                    vscode.DiagnosticSeverity.Information :
+                                    issue.severity !== 'critical' ?
+                                        vscode.DiagnosticSeverity.Warning :
+                                        vscode.DiagnosticSeverity.Error
                             )
-                        )
-                        diag.source = DIAGNOSTIC_SOURCE_STR
-                        diag.code = `${issue.type}, ${issue.pkgName}`
-                        return diag
-                    }
-                ))).filter(x => !!x) as vscode.Diagnostic[]
-                diagnostics.set(textDocumentURI, diagnosticsToShow)
+                            diag.relatedInformation = issue.related.map(
+                                (r) => new vscode.DiagnosticRelatedInformation(
+                                    new vscode.Location(textDocumentURI, r),
+                                    'installation reference'
+                                )
+                            )
+                            diag.source = DIAGNOSTIC_SOURCE_STR
+                            diag.code = `${issue.type}, ${issue.pkgName}`
+                            return diag
+                        }
+                    ))).filter(x => !!x) as vscode.Diagnostic[]
+                    diagnostics.set(textDocumentURI, diagnosticsToShow)
+                }
             }
         }
+        
     }
 
-    context.subscriptions.push(
-        languages.registerCodeLensProvider({
-            language: 'json',
-            pattern: '**/package.json',
-            scheme: undefined
-        }, {
-            provideCodeLenses: pkgJSONProvideCodeLenses
-        }),
-        languages.registerCodeActionsProvider({
-            scheme: undefined,
-            language: 'json',
-            pattern: '**/package.json'
-        }, {
-            provideCodeActions: pkgJSONProvideCodeActions
-        }, {
-            providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
-        })
-    )
+    const pkgActionsHandlers = await Promise.all([
+        pkgJSON.registerCodeLensProvider(),
+        pkgJSON.registerCodeActionsProvider(),
+        pyproject.registerCodeLensProvider(),
+        pyproject.registerCodeActionsProvider(),
+        pipfile.registerCodeActionsProvider(),
+        requirements.registerCodeActionsProvider()
+    ])
+
+    context.subscriptions.push(...pkgActionsHandlers)
 }

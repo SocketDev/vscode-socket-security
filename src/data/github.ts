@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import {workspace} from 'vscode'
+import { parseTOML, getStaticTOMLValue } from 'toml-eslint-parser';
 import ini from 'ini'
 import { Octokit } from 'octokit';
 import { getWorkspaceFolderURI } from '../util';
@@ -22,7 +22,7 @@ async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Promise<st
     // package.json repository
     try {
         const pkg = JSON.parse(
-            Buffer.from(await workspace.fs.readFile(
+            Buffer.from(await vscode.workspace.fs.readFile(
                 vscode.Uri.joinPath(workspaceRootURI, 'package.json')
             )).toString()
         )
@@ -37,12 +37,32 @@ async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Promise<st
             const found = orgOrUserFromString(url)
             if (found) return found
         }
-    } catch (e) {
-    }
+    } catch (e) {}
+
+    // poetry in pyproject.toml
+    try {
+        const pyproject = getStaticTOMLValue(parseTOML(
+            Buffer.from(await vscode.workspace.fs.readFile(
+                vscode.Uri.joinPath(workspaceRootURI, 'pyproject.toml')
+            )).toString()
+        )) as {
+            tool?: {
+                poetry?: {
+                    repository?: string;
+                }
+            }
+        };
+        const url = pyproject.tool?.poetry?.repository;
+        if (url) {
+            const found = orgOrUserFromString(url)
+            if (found) return found
+        }
+    } catch (e) {}
+
     // git remotes?
     try {
         const gitConfig = ini.parse(
-            Buffer.from(await workspace.fs.readFile(
+            Buffer.from(await vscode.workspace.fs.readFile(
                 vscode.Uri.joinPath(workspaceRootURI, '.git', 'config')
             )).toString()
         )
@@ -55,7 +75,7 @@ async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Promise<st
                 }
             }
         }
-    } catch {}
+    } catch (e) {}
 }
 
 export function installGithubApp(uri: vscode.Uri) {
