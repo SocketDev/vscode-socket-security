@@ -206,7 +206,7 @@ export async function getAPIConfig(force?: boolean) {
     await saveConfig(apiKey, enforcedOrgs)
     apiConf = getConfigFromSettings(apiKey, keyInfo!, enforcedOrgs)
     changeAPIConf.fire()
-    return apiConf
+    return apiConf as APIConfig
 }
 
 export function init(disposables?: vscode.Disposable[]) {
