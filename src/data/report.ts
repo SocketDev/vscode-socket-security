@@ -12,7 +12,8 @@ import { EXTENSION_PREFIX, addDisposablesTo, getWorkspaceFolderURI, WorkspaceDat
 import * as stableStringify from 'safe-stable-stringify';
 import watch, { SharedFilesystemWatcherHandler } from '../fs-watch'
 import { GlobPatterns, getGlobPatterns } from './glob-patterns';
-import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
+import { getStaticTOMLValue, parseTOML } from 'toml-eslint-parser';
+import * as socketAPIConfig from './socket-api-config'
 
 export type SocketReport = {
     issues: Array<{
@@ -88,28 +89,10 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
     }
     const { workspace } = vscode
 
-    const editorConfig = workspace.getConfiguration(EXTENSION_PREFIX)
-    let apiKey: string | undefined
-    let authorizationHeaderValue: string = ''
-    function syncWorkspaceConfiguration() {
-        // early adopter release given big quota
-        // hidden settings for testing
-        apiKey = editorConfig.get('socketSecurityAPIKey') ?? 'sktsec_t_--RAN5U4ivauy4w37-6aoKyYPDt5ZbaT5JBVMqiwKo_api'
-        if (typeof apiKey !== 'string' || !apiKey) {
-            apiKey = process.env.SOCKET_SECURITY_API_KEY
-        }
-        if (apiKey) {
-            authorizationHeaderValue = `Basic ${Buffer.from(`${apiKey}:`).toString('base64url')}`
-        }
-        reportData.recalculateAll()
-    }
-    workspace.onDidChangeConfiguration((e) => {
-        if (
-            e.affectsConfiguration(`${EXTENSION_PREFIX}.socketSecurityAPIKey`)
-        ) {
-            syncWorkspaceConfiguration()
-        }
-    })
+    addDisposablesTo(
+        disposables,
+        socketAPIConfig.onAPIConfChange(() => reportData.recalculateAll())
+    )
 
     const reportWatcher: SharedFilesystemWatcherHandler = {
         onDidChange(uri) {
@@ -233,10 +216,12 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('reportsEnabled')) {
                 return
             }
+            if (!(await socketAPIConfig.getExistingAPIConfig())) {
+                return
+            }
         }
-        if (!apiKey) {
-            return
-        }
+        const { apiKey } = await socketAPIConfig.getAPIConfig()
+        const authorizationHeaderValue = socketAPIConfig.toAuthHeader(apiKey)
         const workspaceFolderURI = getWorkspaceFolderURI(uri)
         if (!workspaceFolderURI) {
             return
@@ -385,7 +370,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
         (uri) => runReport(uri),
         () => getDefaultReport()
     )
-    syncWorkspaceConfiguration()
+    reportData.recalculateAll()
     const api = {
         effectiveReportForUri: (uri: vscode.Uri) => reportData.get(uri),
         onReport(...params: Parameters<typeof reportData.on>) {

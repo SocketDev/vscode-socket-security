@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
+import * as socketAPIConfig from './data/socket-api-config'
 import * as pkgJSON from './ui/package-json';
 import * as pyproject from './ui/pyproject';
 import * as pipfile from './ui/pipfile';
@@ -39,6 +40,7 @@ export async function activate(context: ExtensionContext) {
         report.activate(context)
     ])
     files.activate(context, reports, socketConfig, config)
+    socketAPIConfig.init(context.subscriptions)
     const diagnostics = vscode.languages.createDiagnosticCollection()
     const watchHandler: SharedFilesystemWatcherHandler = {
         onDidChange(f) {
