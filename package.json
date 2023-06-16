@@ -56,12 +56,6 @@
         "configuration": {
             "title": "Socket Security",
             "properties": {
-                "socket-security.showAllIssueTypes": {
-                    "order": 0,
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Show all issue types, even issues hidden by default."
-                },
                 "socket-security.minIssueLevel": {
                     "order": 1,
                     "type": "string",
