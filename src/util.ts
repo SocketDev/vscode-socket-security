@@ -1,56 +1,33 @@
 import type { SocketYml } from '@socketsecurity/config';
 import * as toml from 'toml-eslint-parser';
 import * as vscode from 'vscode';
+import { IssueRules, ruleStrength } from './data/socket-api-config';
 
 export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
 export const EXTENSION_PREFIX = 'socket-security'
 
 const SEVERITY_LEVELS = ['low', 'middle', 'high', 'critical'];
 
-const ISSUES_SHOWN_BY_DEFAULT = [
-    'didYouMean',
-    'installScripts',
-    'telemetry',
-    'troll',
-    'malware',
-    'hasNativeCode',
-    'binScriptConfusion',
-    'shellScriptOverride',
-    'gitDependency',
-    'httpDependency',
-    'missingAuthor',
-    'invalidPackageJSON',
-    'unresolvedRequire'
-];
-export function shouldShowIssue(type: string, severity: string, socketYamlConfig: SocketYml): boolean {
-    // const socketYamlConfig = socketConfig.effectiveConfigForUri(uri).data
+export function getDiagnosticSeverity(type: string, severity: string, issueRules: IssueRules, socketYamlConfig: SocketYml): vscode.DiagnosticSeverity | null {
+    const fullRules: IssueRules = { ...socketYamlConfig.issueRules }
+    for (const rule in issueRules) {
+        if (!(rule in fullRules)) fullRules[rule] = issueRules[rule]
+    }
     const editorConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)
-    // hide all types to avoid noise
-    let shouldShowDueToType = false
-    // explicit settings in socket.yml override editor defaults/config
-    if (Object.getOwnPropertyDescriptor(socketYamlConfig.issueRules, type)) {
-        shouldShowDueToType = socketYamlConfig.issueRules[type]
-    } else {
-        // editor settings and defaults
-        if (editorConfig.get('showAllIssueTypes')) {
-            shouldShowDueToType = true
-        } else if (ISSUES_SHOWN_BY_DEFAULT.includes(type)) {
-            shouldShowDueToType = true
-        }
+    const handling = ruleStrength(fullRules[type])
+    if (handling < 2) return null
+    
+    const curLevel = SEVERITY_LEVELS.indexOf(severity)
+    const minLevel = SEVERITY_LEVELS.indexOf(editorConfig.get('minIssueLevel') as string)
+    if (curLevel >= minLevel) {
+        // TODO: change behavior?
+        return handling === 2
+            ? curLevel > 1
+                ? vscode.DiagnosticSeverity.Warning
+                : vscode.DiagnosticSeverity.Information
+            : vscode.DiagnosticSeverity.Error
     }
-    if (shouldShowDueToType) {
-        const minLevel: string = editorConfig.get('minIssueLevel') as string
-        for (let i = SEVERITY_LEVELS.length - 1; i >= 0; i--) {
-            if (SEVERITY_LEVELS[i] === severity) {
-                return true
-            }
-            // didn't match severity level at min level, bail
-            if (SEVERITY_LEVELS[i] === minLevel) {
-                break
-            }
-        }
-    }
-    return false
+    return null
 }
 /**
  * sort by severity, otherwise sort by type lexicographically

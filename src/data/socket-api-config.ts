@@ -11,7 +11,7 @@ import { addDisposablesTo } from '../util'
 
 const PUBLIC_TOKEN = 'sktsec_t_--RAN5U4ivauy4w37-6aoKyYPDt5ZbaT5JBVMqiwKo_api'
 
-type IssueRules = Record<string, boolean | {
+export type IssueRules = Record<string, boolean | {
     action: 'error' | 'warn' | 'ignore' | 'defer'
 }>
 
@@ -64,30 +64,27 @@ async function getSettings(apiKey: string): Promise<KeyInfo | null> {
     return JSON.parse(await text(res))
 }
 
-function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: string[]): APIConfig {    
-    const ruleStrength = (rule: IssueRules[string]) => {
-        if (typeof rule === 'boolean') return rule ? 3 : 1
-        switch (rule.action) {
-            case 'error': return 3
-            case 'warn': return 2
-            case 'ignore': return 1
-            case 'defer': return 0
+export function ruleStrength (rule: IssueRules[string]): 0 | 1 | 2 | 3 {
+    if (typeof rule === 'boolean') return rule ? 3 : 1
+    switch (rule.action) {
+        case 'error': return 3
+        case 'warn': return 2
+        case 'ignore': return 1
+        case 'defer': return 0
+    }
+}
+
+export function mergeRules(a: IssueRules, b: IssueRules) {
+    const merged = { ...a }
+    for (const rule in b) {
+        if (!(rule in merged) || ruleStrength(b[rule]) > ruleStrength(merged[rule])) {
+            merged[rule] = b[rule]
         }
     }
+    return merged
+}
 
-    const mergeRules = (a: IssueRules, b: IssueRules) => {
-        const merged = { ...a }
-        for (const rule in b) {
-            if (
-                !merged[rule] ||
-                ruleStrength(b[rule]) > ruleStrength(merged[rule])
-            ) {
-                merged[rule] = b[rule]
-            }
-        }
-        return merged
-    }
-
+function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: string[]): APIConfig {
     const mergeDefaults = (rules: IssueRules) => {
         const out = { ...rules }
         for (const rule in settings.defaultIssueRules) {

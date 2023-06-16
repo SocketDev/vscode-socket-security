@@ -1,12 +1,14 @@
 import { SocketYml } from '@socketsecurity/config';
 import * as vscode from 'vscode'
 import { radixMergeReportIssues, SocketReport } from '../data/report';
-import { EXTENSION_PREFIX, shouldShowIssue, sortIssues } from '../util';
+import { EXTENSION_PREFIX, getDiagnosticSeverity, getWorkspaceFolderURI, sortIssues } from '../util';
 import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
 import { parseExternals, SUPPORTED_LANGUAGES } from './parse-externals';
 import { pythonBuiltins } from '../data/python-builtins';
+import { getExistingAPIConfig } from '../data/socket-api-config';
+import { sniffForGithubOrgOrUser } from '../data/github';
 
 // @ts-expect-error missing module.isBuiltin
 let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
@@ -161,6 +163,14 @@ export function activate(
             if (!externals) {
                 return
             }
+            const apiConf = await getExistingAPIConfig()
+            if (!apiConf) {
+                return
+            }
+            const folderURI = getWorkspaceFolderURI(doc.uri)
+            const ghOrg = folderURI && await sniffForGithubOrgOrUser(folderURI)
+            const issueRules = apiConf.orgRules.find(org => org.name === ghOrg)?.issueRules ||
+                apiConf.defaultRules
             const issues = radixMergeReportIssues(socketReport)
             const ecoIssues = issues.get(eco)
             for (const {name, range} of externals) {
@@ -178,7 +188,7 @@ export function activate(
                 for (const [severity, types] of pkgIssues) {
                     for (const [type, descriptions] of types) {
                         for (const description of descriptions) {
-                            if (shouldShowIssue(type, severity, socketYamlConfig)) {
+                            if (getDiagnosticSeverity(type, severity, issueRules, socketYamlConfig) != null) {
                                 relevantIssues.push({
                                     type,
                                     severity,
