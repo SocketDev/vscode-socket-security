@@ -43,25 +43,75 @@ export function toAuthHeader(apiKey: string) {
     return `Basic ${Buffer.from(`${apiKey}:`).toString('base64url')}`
 }
 
+type OrgInfo = {
+    id: string
+    name: string
+    image: string | null
+    plan: { tier: 'opensource' | 'team' | 'enterprise' } 
+}
+
+type OrgResponse = {
+    organizations: Record<string, OrgInfo>
+}
+
+type KeyEntry = {
+    start: string | null
+    settings: Record<string, {
+        deferTo: string | null
+        issueRules: IssueRules
+    }>
+}
+
+type KeyResponse = {
+    defaults: {
+        issueRules: IssueRules
+    }
+    entries: KeyEntry[]
+}
+
+
 type KeyInfo = {
-    organizations: Record<string, {
-        id: string
-        name: string
-        plan: { tier: 'opensource' | 'team' | 'enterprise' }
+    organizations: Record<string, OrgInfo & {
         issueRules: IssueRules
     }>
     defaultIssueRules: IssueRules
 }
 
 async function getSettings(apiKey: string): Promise<KeyInfo | null> {
-    const req = https.get('https://api.socket.dev/v0/settings', {
+    const orgReq = https.get('https://api.socket.dev/v0/organizations')
+    const [orgRes] = await once(orgReq, 'response') as [IncomingMessage]
+    if (orgRes.statusCode !== 200) return null
+    const orgs: OrgResponse = JSON.parse(await text(orgRes))
+    const req = https.request('https://api.socket.dev/v0/settings', {
+        method: 'POST',
         headers: {
-            Authorization: toAuthHeader(apiKey)
+            Authorization: toAuthHeader(apiKey),
+            'Content-Type': 'application/json'
         }
     })
+    const orgIDs = Object.keys(orgs.organizations)
+    req.write(JSON.stringify(orgIDs.map(organization => ({ organization }))))
     const [res] = await once(req, 'response') as [IncomingMessage]
     if (res.statusCode !== 200) return null
-    return JSON.parse(await text(res))
+    const keyData: KeyResponse = JSON.parse(await text(res))
+    return {
+        organizations: Object.fromEntries(
+            orgIDs.map((orgID, i) => {
+                const entry = keyData.entries[i]
+                let issueRules: IssueRules = {}
+                let target = entry.start
+                while (target !== null) {
+                    issueRules = mergeDefaults(issueRules, entry.settings[target].issueRules)
+                    target = entry.settings[target].deferTo
+                }
+                return [orgID, {
+                    ...orgs.organizations[orgID],
+                    issueRules
+                }]
+            })
+        ),
+        defaultIssueRules: keyData.defaults.issueRules
+    }
 }
 
 export function ruleStrength (rule: IssueRules[string]): 0 | 1 | 2 | 3 {
@@ -84,22 +134,22 @@ export function mergeRules(a: IssueRules, b: IssueRules) {
     return merged
 }
 
-function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: string[]): APIConfig {
-    const mergeDefaults = (rules: IssueRules) => {
-        const out = { ...rules }
-        for (const rule in settings.defaultIssueRules) {
-            const defaultedRule = out[rule]
-            if (
-                !(rule in out) || (
-                typeof defaultedRule === 'object' &&
-                defaultedRule.action === 'defer'
-            )) {
-                out[rule] = settings.defaultIssueRules[rule]
-            }
+export function mergeDefaults (a: IssueRules, b: IssueRules) {
+    const merged = { ...a }
+    for (const rule in b) {
+        const defaultedRule = merged[rule]
+        if (
+            !(rule in merged) || (
+            typeof defaultedRule === 'object' &&
+            defaultedRule.action === 'defer'
+        )) {
+            merged[rule] = b[rule]
         }
-        return out
     }
+    return merged
+}
 
+function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: string[]): APIConfig {
     const enforcedRules: IssueRules = enforcedOrgs
         .map(org => settings.organizations[org]?.issueRules)
         .filter(rules => rules)
@@ -108,16 +158,12 @@ function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: 
   
     return {
         apiKey,
-        defaultRules: mergeDefaults(enforcedRules),
-        orgRules: Object.values(settings.organizations as Record<string, {
-            id: string;
-            name: string;
-            issueRules: IssueRules;
-        }>).map(({ id, name, issueRules }) => {
+        defaultRules: mergeDefaults(enforcedRules, settings.defaultIssueRules),
+        orgRules: Object.values(settings.organizations).map(({ id, name, issueRules }) => {
             return {
                 id,
                 name,
-                issueRules: mergeDefaults(mergeRules(issueRules, enforcedRules))
+                issueRules: mergeDefaults(mergeRules(issueRules, enforcedRules), settings.defaultIssueRules)
             }
         })
     }
