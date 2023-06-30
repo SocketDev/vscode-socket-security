@@ -47,7 +47,7 @@ type OrgInfo = {
     id: string
     name: string
     image: string | null
-    plan: { tier: 'opensource' | 'team' | 'enterprise' } 
+    plan: 'opensource' | 'team' | 'enterprise'
 }
 
 type OrgResponse = {
@@ -231,7 +231,7 @@ export async function getAPIConfig(force?: boolean) {
         keyInfo = (await getSettings(apiKey))!
     }
     const enforceableOrgs: { label: string; id: string | null }[] = Object.values(keyInfo!.organizations)
-        .filter(item => item.plan.tier === 'enterprise')
+        .filter(item => item.plan === 'enterprise')
         .map(item => ({
             label: item.name,
             id: item.id
