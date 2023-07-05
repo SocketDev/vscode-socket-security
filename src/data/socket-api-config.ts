@@ -78,19 +78,26 @@ type KeyInfo = {
 }
 
 async function getSettings(apiKey: string): Promise<KeyInfo | null> {
-    const orgReq = https.get('https://api.socket.dev/v0/organizations')
+    const authHeader = toAuthHeader(apiKey)
+    const orgReq = https.get('https://api.socket.dev/v0/organizations', {
+        method: 'GET',
+        headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json'
+        }
+    })
     const [orgRes] = await once(orgReq, 'response') as [IncomingMessage]
     if (orgRes.statusCode !== 200) return null
     const orgs: OrgResponse = JSON.parse(await text(orgRes))
     const req = https.request('https://api.socket.dev/v0/settings', {
         method: 'POST',
         headers: {
-            Authorization: toAuthHeader(apiKey),
+            Authorization: authHeader,
             'Content-Type': 'application/json'
         }
     })
     const orgIDs = Object.keys(orgs.organizations)
-    req.write(JSON.stringify(orgIDs.map(organization => ({ organization }))))
+    req.end(JSON.stringify(orgIDs.map(organization => ({ organization }))))
     const [res] = await once(req, 'response') as [IncomingMessage]
     if (res.statusCode !== 200) return null
     const keyData: KeyResponse = JSON.parse(await text(res))
@@ -153,7 +160,7 @@ function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: 
     const enforcedRules: IssueRules = enforcedOrgs
         .map(org => settings.organizations[org]?.issueRules)
         .filter(rules => rules)
-        .reduce((a, b) => mergeRules(a, b))
+        .reduce((a, b) => mergeRules(a, b), {})
 
   
     return {
@@ -185,14 +192,14 @@ async function loadConfig(update?: boolean) {
             if (!keyInfo) {
                 await saveConfig(null, null)
             } else {
-                apiConf = getConfigFromSettings(settings.apiKey, keyInfo, settings.enforcedOrgs) || {}
+                apiConf = getConfigFromSettings(settings.apiKey, keyInfo, settings.enforcedOrgs)
                 if (update) changeAPIConf.fire()
             }
         }
     } catch (err) {}
 }
 
-export async function getExistingAPIConfig() {
+async function findAPIConfig () {
     if (!apiConf) {
         apiConf = {}
         let keyInfo: KeyInfo | null
@@ -203,10 +210,30 @@ export async function getExistingAPIConfig() {
                 apiConf = getConfigFromSettings(envKey, keyInfo, [])
             }
         }
-        if (!apiConf) await loadConfig()
+        if (!(apiConf as APIConfig).apiKey) await loadConfig()
     }
-    
-    return (apiConf as APIConfig).apiKey ? (apiConf as APIConfig) : null
+    return (apiConf as APIConfig).apiKey ? apiConf as APIConfig : null
+}
+
+let existingFindCall: Promise<APIConfig | null> | null = null
+
+export async function getExistingAPIConfig() {
+    if (existingFindCall) return existingFindCall
+    existingFindCall = findAPIConfig()
+    const result = await existingFindCall
+    existingFindCall = null
+    return result
+}
+
+export async function usePublicConfig (force?: boolean) {
+    if (force || !getExistingAPIConfig()) {
+        const apiKey = PUBLIC_TOKEN
+        const keyInfo = (await getSettings(apiKey))!
+        await saveConfig(apiKey, [])
+        apiConf = getConfigFromSettings(apiKey, keyInfo, [])
+        changeAPIConf.fire()
+    }
+    return apiConf as APIConfig
 }
 
 export async function getAPIConfig(force?: boolean) {
@@ -215,7 +242,7 @@ export async function getAPIConfig(force?: boolean) {
         if (existingConf) return existingConf
     }
     let keyInfo: KeyInfo
-    const rawKey = await vscode.window.showInputBox({
+    let apiKey = await vscode.window.showInputBox({
         title: 'Socket Security API Token',
         placeHolder: 'Leave this blank to use a public token',
         prompt: 'Enter your API token from https://socket.dev/',
@@ -225,26 +252,27 @@ export async function getAPIConfig(force?: boolean) {
             if (!keyInfo) return 'Invalid API key'
         }
     })
-    let apiKey = rawKey
+    if (apiKey === undefined) return null
+    let enforcedOrgs: string[] = []
     if (!apiKey) {
         apiKey = PUBLIC_TOKEN
         keyInfo = (await getSettings(apiKey))!
-    }
-    const enforceableOrgs: { label: string; id: string | null }[] = Object.values(keyInfo!.organizations)
-        .filter(item => item.plan === 'enterprise')
-        .map(item => ({
-            label: item.name,
-            id: item.id
-        }))
-    let enforcedOrgs: string[] = []
-    if (enforceableOrgs.length) {
-        const result = await vscode.window.showQuickPick(enforceableOrgs.concat({
-            label: 'None',
-            id: null
-        }), {
-            title: 'Which organization\'s policies should Socket enforce system-wide?'
-        })
-        if (result?.id) enforcedOrgs = [result.id]
+    } else {
+        const enforceableOrgs: { label: string; id: string | null }[] = Object.values(keyInfo!.organizations)
+            .filter(item => item.plan === 'enterprise')
+            .map(item => ({
+                label: item.name,
+                id: item.id
+            }))
+        if (enforceableOrgs.length) {
+            const result = await vscode.window.showQuickPick(enforceableOrgs.concat({
+                label: 'None',
+                id: null
+            }), {
+                title: 'Which organization\'s policies should Socket enforce system-wide?'
+            })
+            if (result?.id) enforcedOrgs = [result.id]
+        }
     }
     await saveConfig(apiKey, enforcedOrgs)
     apiConf = getConfigFromSettings(apiKey, keyInfo!, enforcedOrgs)

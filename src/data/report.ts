@@ -211,17 +211,41 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
         return vscode.Uri.joinPath(uri, '..').fsPath;
     }
 
+    let warnedLogin = false
+
     async function runReport(uri: vscode.Uri, force: boolean = false) {
         if (!force) {
             if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('reportsEnabled')) {
                 return
             }
-            if (!(await socketAPIConfig.getExistingAPIConfig())) {
-                return
+            const result = await socketAPIConfig.getExistingAPIConfig()
+            if (!result) {
+                if (!warnedLogin) {
+                    warnedLogin = true
+                    const realLogin = 'Log in'
+                    const publicLogin = 'Use public token'
+                    const res = await vscode.window.showErrorMessage(
+                        'Please log into Socket or use the free, public demo to run reports on your dependency tree.',
+                        realLogin,
+                        publicLogin
+                    )
+                    if (res === publicLogin) {
+                        await socketAPIConfig.usePublicConfig(true)
+                    } else {
+                        await socketAPIConfig.getAPIConfig(true)
+                    }
+                }
+
+                if (!(await socketAPIConfig.getExistingAPIConfig())) {
+                    return
+                }
             }
         }
-        const { apiKey } = await socketAPIConfig.getAPIConfig()
-        const authorizationHeaderValue = socketAPIConfig.toAuthHeader(apiKey)
+        const apiConfig = await socketAPIConfig.getAPIConfig()
+        if (!apiConfig) {
+            return
+        }
+        const authorizationHeaderValue = socketAPIConfig.toAuthHeader(apiConfig.apiKey)
         const workspaceFolderURI = getWorkspaceFolderURI(uri)
         if (!workspaceFolderURI) {
             return
