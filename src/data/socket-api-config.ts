@@ -156,6 +156,9 @@ export function mergeDefaults (a: IssueRules, b: IssueRules) {
     return merged
 }
 
+/**
+ * Used to generate the completely resolved maximally constrained issue rule values for all applied policies.
+ */
 function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: string[]): APIConfig {
     const enforcedRules: IssueRules = enforcedOrgs
         .map(org => settings.organizations[org]?.issueRules)

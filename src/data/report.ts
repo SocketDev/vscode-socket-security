@@ -231,7 +231,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
                     )
                     if (res === publicLogin) {
                         await socketAPIConfig.usePublicConfig(true)
-                    } else {
+                    } else if (res === realLogin) {
                         await socketAPIConfig.getAPIConfig(true)
                     }
                 }

@@ -85,7 +85,7 @@
                     "default": 80,
                     "minimum": 0,
                     "maximum": 100,
-                    "description": "Show warning overlay for any import of a package with a summary score less than this value.",
+                    "description": "Show overlay for any import of a package with a summary score less than this value.",
                     "examples": [
                         80
                     ]
