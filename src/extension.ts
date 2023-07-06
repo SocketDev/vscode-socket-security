@@ -4,15 +4,16 @@
 import * as vscode from 'vscode';
 import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
+import * as socketAPIConfig from './data/socket-api-config'
 import * as pkgJSON from './ui/package-json';
 import * as pyproject from './ui/pyproject';
 import * as pipfile from './ui/pipfile';
 import * as requirements from './ui/requirements';
 import * as report from './data/report'
 import { radixMergeReportIssues, SocketReport } from './data/report';
-import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, shouldShowIssue, sortIssues } from './util';
+import { EXTENSION_PREFIX, DIAGNOSTIC_SOURCE_STR, getWorkspaceFolderURI, getDiagnosticSeverity, sortIssues } from './util';
 import * as editorConfig from './data/editor-config';
-import { installGithubApp } from './data/github';
+import { installGithubApp, sniffForGithubOrgOrUser } from './data/github';
 import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
 import watch, { SharedFilesystemWatcherHandler } from './fs-watch';
@@ -39,6 +40,7 @@ export async function activate(context: ExtensionContext) {
         report.activate(context)
     ])
     files.activate(context, reports, socketConfig, config)
+    socketAPIConfig.init(context.subscriptions)
     const diagnostics = vscode.languages.createDiagnosticCollection()
     const watchHandler: SharedFilesystemWatcherHandler = {
         onDidChange(f) {
@@ -93,7 +95,6 @@ export async function activate(context: ExtensionContext) {
             populateDiagnostics(evt.uri)
         }),
         config.onDependentConfig([
-            `${EXTENSION_PREFIX}.showAllIssueTypes`,
             `${EXTENSION_PREFIX}.minIssueLevel`,
             `${EXTENSION_PREFIX}.pythonInterpreter`
         ], runAll),
@@ -183,6 +184,12 @@ export async function activate(context: ExtensionContext) {
         if (files.length === 0) {
             return
         }
+        const apiConf = await socketAPIConfig.getExistingAPIConfig()
+        if (!apiConf) {
+            return null
+        }
+        const githubOrg = await sniffForGithubOrgOrUser(workspaceFolderURI)
+        const baseRules = apiConf.orgRules.find(org => org.name === githubOrg)?.issueRules || apiConf.defaultRules
         for (const tgt of files) {
             for (const textDocumentURI of tgt.files) {
                 const src = Buffer.from(await workspace.fs.readFile(textDocumentURI)).toString()
@@ -200,18 +207,12 @@ export async function activate(context: ExtensionContext) {
                 if (relevantIssues && relevantIssues.length) {
                     const diagnosticsToShow = (await Promise.all(relevantIssues.map(
                         async (issue) => {
-                            const should = shouldShowIssue(issue.type, issue.severity, socketYamlConfig)
-                            if (!should) {
-                                return null
-                            }
+                            const severity = getDiagnosticSeverity(issue.type, issue.severity, baseRules, socketYamlConfig)
+                            if (severity == null) return null
                             const diag = new vscode.Diagnostic(
                                 issue.range,
                                 issue.description, 
-                                issue.severity === 'low' ?
-                                    vscode.DiagnosticSeverity.Information :
-                                    issue.severity !== 'critical' ?
-                                        vscode.DiagnosticSeverity.Warning :
-                                        vscode.DiagnosticSeverity.Error
+                                severity
                             )
                             diag.relatedInformation = issue.related.map(
                                 (r) => new vscode.DiagnosticRelatedInformation(

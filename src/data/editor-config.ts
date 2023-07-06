@@ -5,7 +5,7 @@ import * as vscode from 'vscode'
  * 
  * ```js
  * const api = activate(ctx)
- * const [minIssueLevel, showAllIssueTypes] = api.getConfigValues([`${EXTENSION_PREFIX}.minIssueLevel`, `${EXTENSION_PREFIX}.showAllIssueTypes`])
+ * const [minIssueLevel, pythonInterpreter] = api.getConfigValues([`${EXTENSION_PREFIX}.minIssueLevel`, `${EXTENSION_PREFIX}.pythonInterpreter`])
  * ```
  * @param context 
  * @returns 

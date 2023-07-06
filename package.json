@@ -56,12 +56,6 @@
         "configuration": {
             "title": "Socket Security",
             "properties": {
-                "socket-security.showAllIssueTypes": {
-                    "order": 0,
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Show all issue types, even issues hidden by default."
-                },
                 "socket-security.minIssueLevel": {
                     "order": 1,
                     "type": "string",
@@ -72,7 +66,7 @@
                         "middle",
                         "low"
                     ],
-                    "description": "Hide all issues that are less important than this level, note some issues are hidden by default so you may also wish to enable showing all issue types still."
+                    "description": "Hide all issues that are less important than this level. Note some issues are hidden by default so you may also wish to enable showing all issue types still."
                 },
                 "socket-security.errorOverlayThreshold": {
                     "order": 2,
@@ -91,7 +85,7 @@
                     "default": 80,
                     "minimum": 0,
                     "maximum": 100,
-                    "description": "Show error overlay for any import of a package with a summary score less than this value.",
+                    "description": "Show overlay for any import of a package with a summary score less than this value.",
                     "examples": [
                         80
                     ]
