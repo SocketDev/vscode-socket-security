@@ -207,7 +207,7 @@ export async function activate(context: ExtensionContext) {
                 if (relevantIssues && relevantIssues.length) {
                     const diagnosticsToShow = (await Promise.all(relevantIssues.map(
                         async (issue) => {
-                            const severity = getDiagnosticSeverity(issue.type, issue.severity, baseRules, socketYamlConfig)
+                            const severity = getDiagnosticSeverity(issue.type, issue.severity, apiConf.enforcedRules, baseRules, socketYamlConfig)
                             if (severity == null) return null
                             const diag = new vscode.Diagnostic(
                                 issue.range,
