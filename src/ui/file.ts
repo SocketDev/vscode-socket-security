@@ -188,7 +188,7 @@ export function activate(
                 for (const [severity, types] of pkgIssues) {
                     for (const [type, descriptions] of types) {
                         for (const description of descriptions) {
-                            if (getDiagnosticSeverity(type, severity, issueRules, socketYamlConfig) != null) {
+                            if (getDiagnosticSeverity(type, severity, apiConf.enforcedRules, issueRules, socketYamlConfig) != null) {
                                 relevantIssues.push({
                                     type,
                                     severity,
