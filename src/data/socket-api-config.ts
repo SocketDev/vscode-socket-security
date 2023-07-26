@@ -17,6 +17,7 @@ export type IssueRules = Record<string, boolean | {
 
 export type APIConfig = {
     apiKey: string;
+    enforcedRules: IssueRules;
     defaultRules: IssueRules;
     orgRules: { id: string; name: string; issueRules: IssueRules }[]
 }
@@ -168,12 +169,13 @@ function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: 
   
     return {
         apiKey,
-        defaultRules: mergeDefaults(enforcedRules, settings.defaultIssueRules),
+        enforcedRules,
+        defaultRules: settings.defaultIssueRules,
         orgRules: Object.values(settings.organizations).map(({ id, name, issueRules }) => {
             return {
                 id,
                 name,
-                issueRules: mergeDefaults(mergeRules(issueRules, enforcedRules), settings.defaultIssueRules)
+                issueRules: mergeDefaults(issueRules, settings.defaultIssueRules)
             }
         })
     }
