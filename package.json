@@ -113,13 +113,12 @@
     "publisher": "SocketSecurity",
     "scripts": {
         "vscode:prepublish": "npm run esbuild -- --minify",
-        "esbuild-base": "esbuild --bundle --external:vscode --outdir=out/ --platform=node --sourcemap",
+        "esbuild-base": "esbuild --bundle --external:vscode --loader:.wasm=binary --outdir=out/ --platform=node --sourcemap",
         "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",
-        "package-for-vscode": "vsce package --dependencies",
-        "update-vendored": "npm --prefix=./vendor -g i '@socketsecurity/cli'"
+        "package-for-vscode": "vsce package --dependencies"
     },
     "dependencies": {
         "@babel/parser": "^7.20.7",

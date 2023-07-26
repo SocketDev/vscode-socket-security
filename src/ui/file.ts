@@ -6,7 +6,8 @@ import * as https from 'node:https';
 import * as consumer from 'node:stream/consumers'
 import * as module from 'module'
 import { parseExternals, SUPPORTED_LANGUAGES } from './parse-externals';
-import { pythonBuiltins } from '../data/python-builtins';
+import { isPythonBuiltin } from '../data/python/builtins';
+import { isGoBuiltin } from '../data/go/builtins';
 import { getExistingAPIConfig } from '../data/socket-api-config';
 import { sniffForGithubOrgOrUser } from '../data/github';
 
@@ -21,7 +22,19 @@ let isNodeBuiltin: (name: string) => boolean = module.isBuiltin ||
 
 let isBuiltin = (name: string, eco: string): boolean => {
     if (eco === 'npm') return isNodeBuiltin(name);
-    if (eco === 'pypi') return pythonBuiltins.has(name);
+    if (eco === 'pypi') return isPythonBuiltin(name);
+    if (eco === 'go') return isGoBuiltin(name);
+    return false;
+}
+
+let isLocalPackage = (name: string, eco: string): boolean => {
+    if (eco === 'npm') return name.startsWith('.') || name.startsWith('/')
+    if (eco === 'pypi') return name.startsWith('.')
+    if (eco === 'go') {
+        const parts = name.split('/')
+        return parts.some(p => p.startsWith('.')) || !parts[0].includes('.') ||
+            !/[a-z0-9][a-z0-9.-]*/.test(parts[0])
+    }
     return false;
 }
     
@@ -311,8 +324,10 @@ ${issues.sort((a, b) => sortIssues({
                 e.setDecorations(informativeDecoration, informativeDecorations)
                 continue;
             }
+            if (isLocalPackage(name, eco)) {
+                continue
+            }
             getDepscore(name, eco, abortSignal).then(score => {
-
                 if (abortSignal.aborted) {
                     return;
                 }

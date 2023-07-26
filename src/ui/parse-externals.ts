@@ -6,9 +6,11 @@ import path from 'node:path';
 import { text } from 'node:stream/consumers';
 import jsonToAST from 'json-to-ast';
 import * as toml from 'toml-eslint-parser';
-import { getPythonInterpreter } from '../data/python-interpreter';
+import { getPythonInterpreter } from '../data/python/interpreter';
 import { getGlobPatterns } from '../data/glob-patterns';
 import { traverseTOMLKeys } from '../util';
+import { parseGoMod } from '../data/go/mod-parser';
+import { getGoExecutable } from '../data/go/executable';
 
 type ExternalRef = {
     name: string,
@@ -21,7 +23,8 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
     javascriptreact: 'npm',
     typescript: 'npm',
     typescriptreact: 'npm',
-    python: 'pypi'
+    python: 'pypi',
+    go: 'go'
 }
 
 function getJSPackageNameFromSpecifier(name: string): string {
@@ -627,6 +630,13 @@ print(json.dumps(remapped_xrefs))`]);
                 results.push({ name: name.split('.')[0], range });
             }
         }
+    } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'go') {
+        const goExecutable = await getGoExecutable()
+        if (goExecutable) {
+            // TODO
+        } else {
+            // TODO
+        }
     } else {
         const basename = path.basename(doc.fileName);
         const globPatterns = await getGlobPatterns();
@@ -768,6 +778,37 @@ print(json.dumps(remapped_xrefs))`]);
                         )
                     });
                 }
+            }
+        } else if (micromatch.isMatch(basename, globPatterns.go.gomod.pattern)) {
+            const parsed = await parseGoMod(src)
+            if (!parsed) return null
+
+            const exclusions: Set<string> = new Set()
+            for (const exclude of parsed.Exclude ?? []) {
+                exclusions.add(exclude.Mod.Path)
+            }
+
+            for (const req of parsed.Require ?? []) {
+                if (exclusions.has(req.Mod.Path)) continue
+                results.push({
+                    name: req.Mod.Path,
+                    range: new vscode.Range(
+                        new vscode.Position(req.Syntax.Start.Line - 1, req.Syntax.Start.LineRune - 1),
+                        new vscode.Position(req.Syntax.End.Line - 1, req.Syntax.End.LineRune - 1),
+                    )
+                })
+            }
+
+            for (const repl of parsed.Replace ?? []) {
+                if (exclusions.has(repl.New.Path)) continue
+                results.push({
+                    name: repl.New.Path,
+                    // TODO: can we get just the new part?
+                    range: new vscode.Range(
+                        new vscode.Position(repl.Syntax.Start.Line - 1, repl.Syntax.Start.LineRune - 1),
+                        new vscode.Position(repl.Syntax.End.Line - 1, repl.Syntax.End.LineRune - 1),
+                    )
+                })
             }
         }
     }

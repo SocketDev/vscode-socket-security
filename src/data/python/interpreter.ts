@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { EXTENSION_PREFIX } from '../util';
+import { EXTENSION_PREFIX } from '../../util';
 
 async function getPythonExtension() {
     const msPython = vscode.extensions.getExtension('ms-python.python');
