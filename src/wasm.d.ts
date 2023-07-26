@@ -1,4 +1,4 @@
 declare module '*.wasm' {
-    const content: Buffer
+    const content: Uint8Array
     export default content
 }
