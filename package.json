@@ -118,8 +118,7 @@
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",
-        "package-for-vscode": "vsce package --dependencies",
-        "update-vendored": "npm --prefix=./vendor -g i '@socketsecurity/cli'"
+        "package-for-vscode": "vsce package --dependencies"
     },
     "dependencies": {
         "@babel/parser": "^7.20.7",
