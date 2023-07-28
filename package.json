@@ -113,7 +113,7 @@
     "publisher": "SocketSecurity",
     "scripts": {
         "vscode:prepublish": "npm run esbuild -- --minify",
-        "esbuild-base": "esbuild --bundle --external:vscode --loader:.wasm=binary --outdir=out/ --platform=node --sourcemap",
+        "esbuild-base": "esbuild --bundle --external:vscode --loader:.wasm=binary --loader:.go=file --outdir=out/ --platform=node --sourcemap",
         "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
