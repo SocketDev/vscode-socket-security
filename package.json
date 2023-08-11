@@ -123,6 +123,7 @@
     "dependencies": {
         "@babel/parser": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
+        "@vscode/vsce": "^2.20.1",
         "acorn-walk": "^8.2.0",
         "antlr4": "^4.13.0",
         "ast-types": "^0.14.2",
@@ -147,8 +148,7 @@
         "esbuild": "^0.16.7",
         "eslint": "^8.26.0",
         "toml-eslint-parser": "^0.6.0",
-        "typescript": "^4.8.4",
-        "vsce": "^2.15.0"
+        "typescript": "^4.8.4"
     },
     "repository": {
         "url": "https://github.com/SocketDev/vscode-socket-security"
