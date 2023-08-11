@@ -118,6 +118,10 @@ export function activate(
             // TODO: implement PyPI depscores in backend
             return Promise.reject('Python depscores unavailable');
         }
+        if (eco === 'go') {
+            // TODO: implement Go depscores in backend
+            return Promise.reject('Go depscores unavailable');
+        }
         const cacheKey = `${eco}.${pkgName}`
         const existing = depscoreCache.get(cacheKey)
         const time = Date.now();

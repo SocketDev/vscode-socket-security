@@ -38,8 +38,11 @@
         "workspaceContains:**/{*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]}",
         "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
         "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
+        "workspaceContains:**/[gG][oO].[mM][oO][dD]",
+        "workspaceContains:**/[gG][oO].[sS][uU][mM]",
         "onLanguage:python",
-        "onLanguage:javascript"
+        "onLanguage:javascript",
+        "onLanguage:go"
     ],
     "type": "commonjs",
     "main": "./out/main.js",
@@ -102,6 +105,14 @@
                     "description": "Path to a Python interpreter to use for Socket dependency analysis.",
                     "examples": [
                         "/usr/bin/python"
+                    ]
+                },
+                "socket-security.goExecutable": {
+                    "order": 6,
+                    "type": "string",
+                    "description": "Path to a Go executable to use for Socket dependency analysis.",
+                    "examples": [
+                        "/usr/bin/go"
                     ]
                 }
             }

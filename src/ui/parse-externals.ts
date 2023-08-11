@@ -315,10 +315,11 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
                 new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
             ]);
             if (!output) return null;
+            return hydrateJSONRefs(output)
         } else {
-            const goImportRE = /(?<=(?:^|\n)\s*?)(import\s*(?:\s[^\s]+\s*))?("|`)([^\s"`]+)("|`)(?=\s*?(?:$|\n))/g;
+            const goImportRE = /(?<=(?:^|\n)\s*?)(import\s*(?:\s[^\s\("`]+\s*)?)("|`)([^\s"`]+)("|`)(?=\s*?(?:$|\n))/g;
             const goImportBlockStartRE = /(?<=(?:^|\n)\s*?)import\s*\(/g
-            const goImportBlockRE = /(?:;|\n|\()(\s*(?:\s[^\s]+\s*))?("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y
+            const goImportBlockRE = /(?:;|\n|\()(\s*(?:\s[^\s\("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y
             let charInd = 0
             const lineChars = src.split('\n').map(line => charInd += line.length + 1);
             let match: RegExpExecArray | null = null;
@@ -360,9 +361,9 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
                     }
 
                     results.push({ name: realName, range })
-                    goImportBlockRE.lastIndex = imMatch.index + imMatch.length - 1
+                    goImportBlockRE.lastIndex = goImportBlockStartRE.lastIndex = imMatch.index + imMatch[0].length - 1
                 }
-                goImportBlockStartRE.lastIndex = goImportBlockRE.lastIndex + 1
+                goImportBlockStartRE.lastIndex += 1
             }
         }
     } else {

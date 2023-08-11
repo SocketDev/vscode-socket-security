@@ -148,7 +148,14 @@ export async function activate(context: ExtensionContext) {
                 prioritizedRanges[name] = { range, prioritize }
             }
         }
-        const issueLocations = []
+        const issueLocations: Array<{
+            pkgName: string
+            type: string
+            description: string
+            severity: string
+            range: vscode.Range
+            related: vscode.Range[]
+        }> = []
         for (const [ name, {range} ] of Object.entries(prioritizedRanges)) {
             let existingIssuesBySeverity = issuesForSource.get(name)
             if (!existingIssuesBySeverity) continue
