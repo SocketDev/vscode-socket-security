@@ -4,5 +4,6 @@
     "cSpell.words": [
         "esbuild",
         "socketsecurity"
-    ]
+    ],
+    "typescript.tsdk": "node_modules/typescript/lib"
 }

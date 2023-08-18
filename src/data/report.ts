@@ -14,6 +14,7 @@ import watch, { SharedFilesystemWatcherHandler } from '../fs-watch'
 import { GlobPatterns, getGlobPatterns } from './glob-patterns';
 import { getStaticTOMLValue, parseTOML } from 'toml-eslint-parser';
 import * as socketAPIConfig from './socket-api-config'
+import { GoModuleVersion, parseGoMod } from "./go/mod-parser";
 
 export type SocketReport = {
     issues: Array<{
@@ -111,7 +112,8 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
 
     const watchTargets = [
         ...Object.values(supportedFiles.npm),
-        ...Object.values(supportedFiles.pypi)
+        ...Object.values(supportedFiles.pypi),
+        ...Object.values(supportedFiles.go)
     ].map(info => info.pattern);
 
     addDisposablesTo(
@@ -135,6 +137,24 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             bundledDependencies,
             optionalDependencies
         }) ?? '' ) as PackageRootCacheKey;
+    }
+    async function goModCacheKey(src: Buffer): Promise<PackageRootCacheKey> {
+        const parsed = await parseGoMod(src.toString())
+        if (!parsed) {
+            throw new Error('failed to parse go.mod')
+        }
+        const compareMods = (a: GoModuleVersion, b: GoModuleVersion) =>
+            a.Path.localeCompare(b.Path) || a.Version!.localeCompare(b.Version!)
+        const required = parsed.Require?.map(req => req.Mod).sort(compareMods)
+        const replaced = parsed.Replace?.map(repl => ({ New: repl.New, Old: repl.Old }))
+            .sort((a, b) => compareMods(a.New, b.New) || compareMods(a.Old, b.Old))
+        const excluded = parsed.Exclude?.map(excl => excl.Mod).sort(compareMods)
+
+        return (stableStringify.stringify({
+            required,
+            replaced,
+            excluded
+        }) ?? '') as PackageRootCacheKey
     }
     function pipfileCacheKey(src: Buffer): PackageRootCacheKey {
         const value = getStaticTOMLValue(parseTOML(src.toString())) as {
@@ -187,7 +207,9 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
         cacheKey: PackageRootCacheKey,
     }> = new Map()
 
-    async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => PackageRootCacheKey | null) {
+    type Awaitable<T> = T | { then (onfulfilled: (result: T) => unknown): unknown }
+
+    async function findWorkspaceFiles(pattern: string, getCacheKey: (src: Buffer, path: string) => Awaitable<PackageRootCacheKey | null>) {
         const uris = await workspace.findFiles(pattern, '**/{node_modules,.git}/**');
 
         return Promise.all(uris.map(async uri => {
@@ -195,7 +217,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             const body = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
             let cacheKey: PackageRootCacheKey | null = null;
             try {
-                cacheKey = getCacheKey(body, uri.fsPath)
+                cacheKey = await getCacheKey(body, uri.fsPath)
             } catch (e) {
                 // failed to load - empty cacheKey
             }
@@ -265,9 +287,11 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
 
         const [
             pkgJSONFiles,
+            goModFiles,
             ...allPyFiles
         ] = await Promise.all([
             findWorkspaceFiles(`**/${globPatterns.npm.packagejson.pattern}`, pkgJSONCacheKey),
+            findWorkspaceFiles(`**/${globPatterns.go.gomod.pattern}`, goModCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.pipfile.pattern}`, pipfileCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.pyproject.pattern}`, pyprojectCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.requirements.pattern}`, requirementsCacheKey),
@@ -285,7 +309,20 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             npmLockFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))
         )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
 
-        const files = [...pkgJSONFiles, ...npmLockFiles, ...allPyFiles.flat()]
+        const goModParents = new Set(goModFiles.map(file => uriParent(file.uri)))
+        const goExtraFilePatterns = Object.keys(globPatterns.go)
+            .filter(name => name !== 'gomod')
+            .map(name => globPatterns.go[name])
+
+        const goExtraFiles = (await Promise.all(
+            goExtraFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))
+        )).flat().filter(file => goModParents.has(uriParent(file.uri)))
+
+        const files = [
+            ...pkgJSONFiles, ...npmLockFiles,
+            ...goModFiles, ...goExtraFiles,
+            ...allPyFiles.flat()
+        ]
 
         let needRun = false
         for (const file of files) {

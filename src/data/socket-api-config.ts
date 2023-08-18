@@ -24,7 +24,6 @@ export type APIConfig = {
 
 let apiConf: APIConfig | {} | undefined
 
-
 let dataHome = process.platform === 'win32'
   ? process.env['LOCALAPPDATA']
   : process.env['XDG_DATA_HOME']

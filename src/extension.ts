@@ -6,6 +6,7 @@ import { ExtensionContext, workspace } from 'vscode';
 import * as socketYaml from './data/socket-yaml'
 import * as socketAPIConfig from './data/socket-api-config'
 import * as pkgJSON from './ui/package-json';
+import * as goMod from './ui/go-mod'
 import * as pyproject from './ui/pyproject';
 import * as pipfile from './ui/pipfile';
 import * as requirements from './ui/requirements';
@@ -17,7 +18,8 @@ import { installGithubApp, sniffForGithubOrgOrUser } from './data/github';
 import * as files from './ui/file'
 import { parseExternals } from './ui/parse-externals';
 import watch, { SharedFilesystemWatcherHandler } from './fs-watch';
-import { initPython, onMSPythonInterpreterChange } from './data/python-interpreter';
+import { initPython, onMSPythonInterpreterChange } from './data/python/interpreter';
+import { initGo } from './data/go/executable';
 import { getGlobPatterns } from './data/glob-patterns';
 
 export async function activate(context: ExtensionContext) {
@@ -66,7 +68,8 @@ export async function activate(context: ExtensionContext) {
 
     const watchTargets = {
         npm: ['packagejson'],
-        pypi: ['pipfile', 'requirements', 'pyproject']
+        pypi: ['pipfile', 'requirements', 'pyproject'],
+        go: ['gomod', 'gosum']
     }
 
     const watchTargetValues = Object.entries(watchTargets).flatMap(([eco, names]) => names.map(name => ({
@@ -77,6 +80,7 @@ export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
         diagnostics,
         await initPython(),
+        await initGo(),
         ...watchTargetValues.map(target => watch(target.pattern, watchHandler))
     );
     const runAll = () => {
@@ -96,7 +100,8 @@ export async function activate(context: ExtensionContext) {
         }),
         config.onDependentConfig([
             `${EXTENSION_PREFIX}.minIssueLevel`,
-            `${EXTENSION_PREFIX}.pythonInterpreter`
+            `${EXTENSION_PREFIX}.pythonInterpreter`,
+            `${EXTENSION_PREFIX}.goExecutable`
         ], runAll),
         onMSPythonInterpreterChange(() => {
             if (!vscode.workspace.getConfiguration(EXTENSION_PREFIX).get('pythonInterpreter')) {
@@ -143,7 +148,14 @@ export async function activate(context: ExtensionContext) {
                 prioritizedRanges[name] = { range, prioritize }
             }
         }
-        const issueLocations = []
+        const issueLocations: Array<{
+            pkgName: string
+            type: string
+            description: string
+            severity: string
+            range: vscode.Range
+            related: vscode.Range[]
+        }> = []
         for (const [ name, {range} ] of Object.entries(prioritizedRanges)) {
             let existingIssuesBySeverity = issuesForSource.get(name)
             if (!existingIssuesBySeverity) continue
@@ -235,6 +247,8 @@ export async function activate(context: ExtensionContext) {
     const pkgActionsHandlers = await Promise.all([
         pkgJSON.registerCodeLensProvider(),
         pkgJSON.registerCodeActionsProvider(),
+        goMod.registerCodeLensProvider(),
+        goMod.registerCodeActionsProvider(),
         pyproject.registerCodeLensProvider(),
         pyproject.registerCodeActionsProvider(),
         pipfile.registerCodeActionsProvider(),

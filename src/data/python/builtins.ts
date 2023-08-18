@@ -1,6 +1,6 @@
 // extracted from https://github.com/PyCQA/isort/blob/main/isort/stdlibs
 // it's possible to dynamically get builtins but that doesn't work on web
-export const pythonBuiltins = new Set([
+const pythonBuiltins = new Set([
     'AL',
     'BaseHTTPServer',
     'Bastion',
@@ -328,3 +328,7 @@ export const pythonBuiltins = new Set([
     'zlib',
     'zoneinfo'
 ]);
+
+export function isPythonBuiltin (pkg: string) {
+    return pythonBuiltins.has(pkg)
+}

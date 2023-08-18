@@ -3,7 +3,8 @@
         "module": "ESNext",
         "moduleResolution": "node",
         "target": "es2020",
-		"lib": ["es2020"],
+        // DOM needed for WASM unfortunately
+        "lib": ["dom", "es2020"],
         "outDir": "out",
         "sourceMap": true,
         "rootDir": "src",

@@ -38,8 +38,11 @@
         "workspaceContains:**/{*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]}",
         "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
         "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
+        "workspaceContains:**/[gG][oO].[mM][oO][dD]",
+        "workspaceContains:**/[gG][oO].[sS][uU][mM]",
         "onLanguage:python",
-        "onLanguage:javascript"
+        "onLanguage:javascript",
+        "onLanguage:go"
     ],
     "type": "commonjs",
     "main": "./out/main.js",
@@ -103,6 +106,14 @@
                     "examples": [
                         "/usr/bin/python"
                     ]
+                },
+                "socket-security.goExecutable": {
+                    "order": 6,
+                    "type": "string",
+                    "description": "Path to a Go executable to use for Socket dependency analysis.",
+                    "examples": [
+                        "/usr/bin/go"
+                    ]
                 }
             }
         }
@@ -113,7 +124,7 @@
     "publisher": "SocketSecurity",
     "scripts": {
         "vscode:prepublish": "npm run esbuild -- --minify",
-        "esbuild-base": "esbuild --bundle --external:vscode --outdir=out/ --platform=node --sourcemap",
+        "esbuild-base": "esbuild --bundle --external:vscode --loader:.wasm=binary --loader:.go=file --outdir=out/ --platform=node --sourcemap",
         "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
@@ -123,6 +134,7 @@
     "dependencies": {
         "@babel/parser": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
+        "@vscode/vsce": "^2.20.1",
         "acorn-walk": "^8.2.0",
         "antlr4": "^4.13.0",
         "ast-types": "^0.14.2",
@@ -147,8 +159,7 @@
         "esbuild": "^0.16.7",
         "eslint": "^8.26.0",
         "toml-eslint-parser": "^0.6.0",
-        "typescript": "^4.8.4",
-        "vsce": "^2.15.0"
+        "typescript": "^4.8.4"
     },
     "repository": {
         "url": "https://github.com/SocketDev/vscode-socket-security"
