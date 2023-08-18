@@ -319,7 +319,7 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
         } else {
             const goImportRE = /(?<=(?:^|\n)\s*?)(import\s*(?:\s[^\s\("`]+\s*)?)("|`)([^\s"`]+)("|`)(?=\s*?(?:$|\n))/g;
             const goImportBlockStartRE = /(?<=(?:^|\n)\s*?)import\s*\(/g
-            const goImportBlockRE = /(?:;|\n|\()(\s*(?:\s[^\s\("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y
+            const goImportBlockRE = /(;|\n|\()(\s*(?:\s[^\s\("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y
             let charInd = 0
             const lineChars = src.split('\n').map(line => charInd += line.length + 1);
             let match: RegExpExecArray | null = null;
@@ -344,15 +344,16 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
             for (let nl = 0; match = goImportBlockStartRE.exec(src);) {
                 goImportBlockRE.lastIndex = match.index + match[0].length - 1
                 for (let imMatch: RegExpExecArray | null = null; imMatch = goImportBlockRE.exec(src);) {
-                    const name = imMatch[3]
-                    const imInd = imMatch.index + (imMatch[1] || '').length
+                    const name = imMatch[4]
+                    const imInd = imMatch.index + (imMatch[1] || '').length + (imMatch[2] || '').length
                     while (lineChars[nl] <= imInd) ++nl;
+                    const startCol = imInd - (nl && lineChars[nl - 1])
                     const line = nl
-                    const imEnd = imInd + name.length + 2;
-                    const range = new vscode.Range(line, imInd, line, imEnd);
+                    const endCol = startCol + name.length + 2;
+                    const range = new vscode.Range(line, startCol, line, endCol);
                     let realName = name
 
-                    if (imMatch[2] === '"' && imMatch[4] === '"') {
+                    if (imMatch[3] === '"' && imMatch[5] === '"') {
                         try {
                             realName = JSON.parse(`"${realName}"`)
                         } catch (err) {

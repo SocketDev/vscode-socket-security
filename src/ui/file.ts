@@ -388,7 +388,7 @@ ${score.metrics.transitiveDependencyCount == null ? '' :`<tr>
                 }
                 decoPool.push(deco);
                 e.setDecorations(decoType, decoPool);
-            })
+            }, err => {})
         }
     }
     function decorateEditors() {
