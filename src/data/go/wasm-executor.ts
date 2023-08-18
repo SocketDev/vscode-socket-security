@@ -1,5 +1,5 @@
 // TODO: add to @socket/utils
-import { getRandomValues } from 'crypto'
+import { randomBytes } from 'crypto'
 
 interface GoSyscallError extends Error {
   code: string
@@ -263,7 +263,8 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       },
       'runtime.getRandomData': (sp: number) => {
         sp >>>= 0
-        getRandomValues(loadSlice(sp + 8))
+        const slice = loadSlice(sp + 8)
+        slice.set(randomBytes(slice.byteLength))
       },
       'syscall/js.finalizeRef': (sp: number) => {
         sp >>>= 0

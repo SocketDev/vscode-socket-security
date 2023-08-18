@@ -19,6 +19,8 @@ async function provideCodeLenses(document: vscode.TextDocument, token: vscode.Ca
             )
             const range = new vscode.Range(start, end)
             lenses.push(generateLens(range, document))
+            // Only highlight first instance for now
+            break
         } else if ('InBlock' in expr && !expr.InBlock && expr.Token[0] === 'require') {
             const start = new vscode.Position(
                 expr.Start.Line - 1,
@@ -30,6 +32,8 @@ async function provideCodeLenses(document: vscode.TextDocument, token: vscode.Ca
             )
             const range = new vscode.Range(start, end)
             lenses.push(generateLens(range, document))
+            // Only highlight first instance
+            break
         }
     }
     return lenses
