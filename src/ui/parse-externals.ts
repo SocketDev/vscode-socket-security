@@ -509,7 +509,7 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
                     });
                 }
             }
-        } else if (micromatch.isMatch(basename, globPatterns.go.gomod.pattern)) {
+        } else if (micromatch.isMatch(basename, globPatterns.golang.gomod.pattern)) {
             const parsed = await parseGoMod(src)
             if (!parsed) return null
 
