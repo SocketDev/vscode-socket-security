@@ -129,7 +129,7 @@ export function activate(
             return existing.score;
         }
         const score = new Promise<PackageScore>((f, r) => {
-            const req = https.get(`https://socket.dev/api/${eco}/package/scores?name=${pkgName}`);
+            const req = https.get(`https://socket.dev/api/${eco}/package-info/score?name=${pkgName}`);
             function cleanupReq() {
                 try {
                     req.destroy();
