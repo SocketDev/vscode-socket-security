@@ -42,7 +42,7 @@ async function provideCodeLenses(document: vscode.TextDocument, token: vscode.Ca
 export async function registerCodeLensProvider() {
     const globPatterns = await getGlobPatterns();
     return vscode.languages.registerCodeLensProvider({
-        pattern: `**/${globPatterns.go.gomod.pattern}`,
+        pattern: `**/${globPatterns.golang.gomod.pattern}`,
         scheme: undefined
     }, {
         provideCodeLenses
@@ -52,7 +52,7 @@ export async function registerCodeLensProvider() {
 export async function registerCodeActionsProvider() {
     const patterns = await getGlobPatterns();
     return vscode.languages.registerCodeActionsProvider({
-        pattern: `**/${patterns.go.gomod.pattern}`,
+        pattern: `**/${patterns.golang.gomod.pattern}`,
         scheme: undefined
     }, {
         provideCodeActions

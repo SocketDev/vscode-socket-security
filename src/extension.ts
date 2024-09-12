@@ -69,7 +69,7 @@ export async function activate(context: ExtensionContext) {
     const watchTargets = {
         npm: ['packagejson'],
         pypi: ['pipfile', 'requirements', 'pyproject'],
-        go: ['gomod', 'gosum']
+        golang: ['gomod', 'gosum']
     }
 
     const watchTargetValues = Object.entries(watchTargets).flatMap(([eco, names]) => names.map(name => ({

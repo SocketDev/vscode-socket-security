@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
     const watchTargets = [
         ...Object.values(supportedFiles.npm),
         ...Object.values(supportedFiles.pypi),
-        ...Object.values(supportedFiles.go)
+        ...Object.values(supportedFiles.golang)
     ].map(info => info.pattern);
 
     addDisposablesTo(
@@ -291,7 +291,7 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
             ...allPyFiles
         ] = await Promise.all([
             findWorkspaceFiles(`**/${globPatterns.npm.packagejson.pattern}`, pkgJSONCacheKey),
-            findWorkspaceFiles(`**/${globPatterns.go.gomod.pattern}`, goModCacheKey),
+            findWorkspaceFiles(`**/${globPatterns.golang.gomod.pattern}`, goModCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.pipfile.pattern}`, pipfileCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.pyproject.pattern}`, pyprojectCacheKey),
             findWorkspaceFiles(`**/${globPatterns.pypi.requirements.pattern}`, requirementsCacheKey),
@@ -310,9 +310,9 @@ export async function activate(context: vscode.ExtensionContext, disposables?: A
         )).flat().filter(file => pkgJSONParents.has(uriParent(file.uri)))
 
         const goModParents = new Set(goModFiles.map(file => uriParent(file.uri)))
-        const goExtraFilePatterns = Object.keys(globPatterns.go)
+        const goExtraFilePatterns = Object.keys(globPatterns.golang)
             .filter(name => name !== 'gomod')
-            .map(name => globPatterns.go[name])
+            .map(name => globPatterns.golang[name])
 
         const goExtraFiles = (await Promise.all(
             goExtraFilePatterns.map(p => findWorkspaceFiles(`**/${p.pattern}`, hashCacheKey))
