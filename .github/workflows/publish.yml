@@ -23,13 +23,16 @@ jobs:
       - uses: actions/setup-node@v3
       - run: npm ci
       - name: Publish to Open VSX Registry
+        if: success() || failure()
         uses: HaaLeo/publish-vscode-extension@v1
         id: publishToOpenVSX
         with:
           dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           preRelease: ${{ steps.releaseMode.outputs.preRelease }}
+          skipDuplicate: true
       - name: Publish to Visual Studio Marketplace
+        if: success() || failure()
         uses: HaaLeo/publish-vscode-extension@v1
         with:
           dryRun: ${{ steps.releaseMode.outputs.dryRun }}
@@ -37,6 +40,7 @@ jobs:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
           preRelease: ${{ steps.releaseMode.outputs.preRelease }}
           registryUrl: https://marketplace.visualstudio.com
+          skipDuplicate: true
       - name: Github Release
         uses: softprops/action-gh-release@v1
         # if: ${{ ! steps.releaseMode.outputs.dryRun }}
