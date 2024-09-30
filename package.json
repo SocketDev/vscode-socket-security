@@ -2,7 +2,7 @@
     "name": "vscode-socket-security",
     "displayName": "Socket Security",
     "description": "Editor integration with Socket Security",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "private": true,
     "preview": false,
     "categories": [
@@ -35,7 +35,10 @@
     "activationEvents": [
         "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
         "workspaceContains:**/[sS][oO][cC][kK][eE][tT].[yY][mM][lL]",
-        "workspaceContains:**/{*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT],[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]}",
+        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
+        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT]",
+        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT]",
+        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]",
         "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
         "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
         "workspaceContains:**/[gG][oO].[mM][oO][dD]",
