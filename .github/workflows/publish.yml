@@ -1,23 +1,23 @@
 on:
   push:
     tags:
+      - "dryrun/[0-9]+.[0-9]+.[0-9]+"
       - "release/[0-9]+.[0-9]+.[0-9]+"
-      - "prerelease/[0-9]+.[0-9]+.[0-9]+"
 
 name: Deploy Extension
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Check for DryRun and Prerelease
+      - name: Check for DryRun
         id: releaseMode
         # perform secret check & put boolean result as an output
         shell: bash
         run: |
-          if [[ "${{ github.ref }}" = "refs/tags/prerelease"* ]]; then
-            echo "preRelease=true" >> $GITHUB_OUTPUT;
+          if [[ "${{ github.ref }}" = "refs/tags/dryrun"* ]]; then
+            echo "dryRun=true" >> $GITHUB_OUTPUT;
           else
-            echo "preRelease=false" >> $GITHUB_OUTPUT;
+            echo "dryRun=false" >> $GITHUB_OUTPUT;
           fi
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -29,7 +29,7 @@ jobs:
         with:
           dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
+          preRelease: false
           skipDuplicate: true
       - name: Publish to Visual Studio Marketplace
         if: success() || failure()
@@ -38,12 +38,12 @@ jobs:
           dryRun: ${{ steps.releaseMode.outputs.dryRun }}
           extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: ${{ steps.releaseMode.outputs.preRelease }}
+          preRelease: false
           registryUrl: https://marketplace.visualstudio.com
           skipDuplicate: true
       - name: Github Release
         uses: softprops/action-gh-release@v1
-        # if: ${{ ! steps.releaseMode.outputs.dryRun }}
+        if: ${{ ! steps.releaseMode.outputs.dryRun }}
         with:
           body: |
             This release is also available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=SocketSecurity.vscode-socket-security) and [OpenVSX Registry](https://open-vsx.org/extension/SocketSecurity/vscode-socket-security).
