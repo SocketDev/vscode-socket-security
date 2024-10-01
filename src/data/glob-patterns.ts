@@ -2,6 +2,7 @@ import { IncomingMessage } from 'node:http';
 import * as https from 'node:https';
 import { once } from 'node:stream';
 import { text } from 'stream/consumers';
+import { flattenGlob } from '../util'
 
 export type GlobPatterns = Record<string, Record<string, { pattern: string }>>
 
@@ -36,7 +37,7 @@ export async function getGlobPatterns() {
                 for (const eco in result) {
                     for (const name in result[eco]) {
                         const target = result[eco][name];
-                        target.pattern = caseDesensitize(target.pattern)
+                        target.pattern = caseDesensitize(flattenGlob(target.pattern))
                     }
                 }
                 return result

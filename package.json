@@ -35,10 +35,7 @@
     "activationEvents": [
         "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
         "workspaceContains:**/[sS][oO][cC][kK][eE][tT].[yY][mM][lL]",
-        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
-        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]/*.[tT][xX][tT]",
-        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS]-*.[tT][xX][tT]",
-        "workspaceContains:**/*[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[fF][rR][oO][zZ][eE][nN]",
+        "workspaceContains:**/[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
         "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
         "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
         "workspaceContains:**/[gG][oO].[mM][oO][dD]",
