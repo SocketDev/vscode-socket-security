@@ -26,7 +26,7 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
     typescript: 'npm',
     typescriptreact: 'npm',
     python: 'pypi',
-    go: 'go'
+    go: 'golang'
 }
 
 function getJSPackageNameFromSpecifier(name: string): string {
@@ -301,7 +301,7 @@ export async function parseExternals(doc: Pick<vscode.TextDocument, 'getText' | 
                 results.push({ name: name.split('.')[0], range });
             }
         }
-    } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'go') {
+    } else if (SUPPORTED_LANGUAGES[doc.languageId] === 'golang') {
         const goExecutable = await getGoExecutable()
         if (goExecutable) {
             const [childProcess, importFinderBin] = await Promise.all([

@@ -8,7 +8,7 @@ import * as module from 'module'
 import { parseExternals, SUPPORTED_LANGUAGES } from './parse-externals';
 import { isPythonBuiltin } from '../data/python/builtins';
 import { isGoBuiltin } from '../data/go/builtins';
-import { getExistingAPIConfig } from '../data/socket-api-config';
+import { getExistingAPIConfig, getAPIConfig, toAuthHeader } from '../data/socket-api-config';
 import { sniffForGithubOrgOrUser } from '../data/github';
 
 // @ts-expect-error missing module.isBuiltin
@@ -114,13 +114,9 @@ export function activate(
         if (signal.aborted) {
             return Promise.reject('Aborted');
         }
-        if (eco === 'pypi') {
+        if (['go', 'golang', 'pypi'].includes(eco)) {
             // TODO: implement PyPI depscores in backend
             return Promise.reject('Python depscores unavailable');
-        }
-        if (eco === 'go') {
-            // TODO: implement Go depscores in backend
-            return Promise.reject('Go depscores unavailable');
         }
         const cacheKey = `${eco}.${pkgName}`
         const existing = depscoreCache.get(cacheKey)
@@ -128,8 +124,18 @@ export function activate(
         if (existing && time < existing.expires) {
             return existing.score;
         }
-        const score = new Promise<PackageScore>((f, r) => {
-            const req = https.get(`https://socket.dev/api/${eco}/package-info/score?name=${pkgName}`);
+        const score = new Promise<PackageScore>(async (f, r) => {
+            const apiConfig = await getAPIConfig()
+            if (!apiConfig) {
+                return
+            }
+            const req = https.request(`https://socket.dev/api/${eco}/package-info/score?name=${pkgName}`, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'json',
+                    'authorization': toAuthHeader(apiConfig.apiKey)
+                }
+            });
             function cleanupReq() {
                 try {
                     req.destroy();
@@ -138,7 +144,11 @@ export function activate(
                 r(Promise.reject('Aborted'));
             }
             signal.addEventListener('abort', cleanupReq);
-            req.end();
+            req.end(JSON.stringify({
+                components: [
+                    purl: `pkg:${eco}/${pkgName}`
+                ]
+            }));
             req.on('error', r);
             req.on('response', (res) => {
                 signal.removeEventListener('abort', cleanupReq);
