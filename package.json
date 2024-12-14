@@ -134,6 +134,7 @@
     "dependencies": {
         "@babel/parser": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
+        "@socketsecurity/registry": "^1.0.66",
         "@vscode/vsce": "^2.20.1",
         "acorn-walk": "^8.2.0",
         "antlr4": "^4.13.0",

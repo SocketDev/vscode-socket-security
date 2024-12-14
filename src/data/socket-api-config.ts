@@ -5,11 +5,10 @@ import * as https from 'node:https'
 import { once } from 'node:events'
 import { IncomingMessage } from 'node:http'
 import { text } from 'node:stream/consumers'
+import constants from '@socketsecurity/registry/lib/constants'
 import { addDisposablesTo } from '../util'
 
-// TODO: dedupe with CLI - consolidate into SDK
-
-const PUBLIC_TOKEN = 'sktsec_t_--RAN5U4ivauy4w37-6aoKyYPDt5ZbaT5JBVMqiwKo_api'
+const { SOCKET_PUBLIC_API_TOKEN } = constants
 
 export type IssueRules = Record<string, boolean | {
     action: 'error' | 'warn' | 'ignore' | 'defer'
@@ -165,7 +164,6 @@ function getConfigFromSettings(apiKey: string, settings: KeyInfo, enforcedOrgs: 
         .filter(rules => rules)
         .reduce((a, b) => mergeRules(a, b), {})
 
-  
     return {
         apiKey,
         enforcedRules,
@@ -207,7 +205,7 @@ async function findAPIConfig () {
     if (!apiConf) {
         apiConf = {}
         let keyInfo: KeyInfo | null
-        const envKey = process.env.SOCKET_SECURITY_API_KEY
+        const envKey = process.env.SOCKET_SECURITY_API_TOKEN ?? process.env.SOCKET_SECURITY_API_KEY
         if (envKey) {
             keyInfo = await getSettings(envKey)
             if (keyInfo) {
@@ -231,7 +229,7 @@ export async function getExistingAPIConfig() {
 
 export async function usePublicConfig (force?: boolean) {
     if (force || !getExistingAPIConfig()) {
-        const apiKey = PUBLIC_TOKEN
+        const apiKey = SOCKET_PUBLIC_API_TOKEN
         const keyInfo = (await getSettings(apiKey))!
         await saveConfig(apiKey, [])
         apiConf = getConfigFromSettings(apiKey, keyInfo, [])
@@ -259,7 +257,7 @@ export async function getAPIConfig(force?: boolean) {
     if (apiKey === undefined) return null
     let enforcedOrgs: string[] = []
     if (!apiKey) {
-        apiKey = PUBLIC_TOKEN
+        apiKey = SOCKET_PUBLIC_API_TOKEN
         keyInfo = (await getSettings(apiKey))!
     } else {
         const enforceableOrgs: { label: string; id: string | null }[] = Object.values(keyInfo!.organizations)
