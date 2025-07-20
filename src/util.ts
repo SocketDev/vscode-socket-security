@@ -351,5 +351,6 @@ export function flattenGlob(glob: string) {
         return root.explode()
     }
 
-    return `{${explode(glob).join(',')}}`
+    const parts = explode(glob)
+    return parts.length > 1 ? `{${parts.join(',')}}` : parts[0]
 }

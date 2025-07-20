@@ -7,6 +7,7 @@ import (
     "go/parser"
     "go/token"
     "strconv"
+    "fmt"
 )
 
 // Eventually maybe migrate to WASI with tinygo
@@ -33,6 +34,8 @@ func toVSPos(src token.Position) VSPosition {
 }
 
 func main() {
+    // TODO: stderr
+    fmt.Fprintln(os.Stderr, "This is an error message")
     reader := bufio.NewReader(os.Stdin)
     fset := token.NewFileSet()
     file, err := parser.ParseFile(fset, "src.go", reader, parser.ImportsOnly)

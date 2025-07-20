@@ -78,7 +78,7 @@ export async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Pro
     } catch (e) {}
 }
 
-export function installGithubApp(uri: vscode.Uri) {
+export function installGithubApp(uri: vscode.Uri) {return
     vscode.authentication.getSession('github', [
         'read:user',
         'read:org'

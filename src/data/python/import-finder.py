@@ -1,17 +1,78 @@
-// Python dependency extractor
-// handles basic constant folding + dynamic import extraction
-// some limited error correction functionality
+import ast, tokenize, token, json, sys, io, importlib
 
-// possible future TODO: use python tokenizer with error-correcting
-// indents and manually parse - better perf + accuracy
-export function generateNativePyImportFinder (src: string): string {
-    return `import ast, tokenize, token, json, sys, io, importlib
-
-src = u${JSON.stringify(src)}
+src = sys.stdin.read()
 src_lines = src.split(u'\\n')
 
 xrefs = []
 pending_xref = None
+
+def get_module_file_path(module_name):
+    try:
+        # Preferred: Python 3.4+
+        import importlib.util
+        spec = importlib.util.find_spec(module_name)
+        if spec and spec.origin:
+            return spec.origin
+    except ImportError:
+        pass
+
+    try:
+        # Fallback for Python 2.7+
+        import pkgutil
+        loader = pkgutil.get_loader(module_name)
+        if loader:
+            try:
+                return loader.get_filename()
+            except AttributeError:
+                pass
+    except ImportError:
+        pass
+
+    mod = __import__(module_name)
+    mod_path = getattr(mod, '__file__', None)
+    return mod_path
+
+
+def find_distribution_for_module(module_name):
+    # Step 1: Dynamically import the module
+    try:
+        mod_path = get_module_file_path(module_name)
+        if not mod_path:
+            return module_name
+    except ImportError as e:
+        return module_name
+
+    # Step 2: Try importlib.metadata (Python 3.8+)
+    try:
+        import importlib.metadata as metadata
+    except ImportError:
+        metadata = None
+        try:
+            import importlib_metadata as metadata  # type: ignore # Backport (optional)
+        except ImportError:
+            pass  # Still None if not available
+
+    if metadata is not None:
+        try:
+            for dist in metadata.distributions():
+                try:
+                    if any(str(file) in mod_path for file in dist.files or []):
+                        return dist.metadata['Name']
+                except Exception:
+                    continue
+        except Exception:
+            pass  # Be safe around possibly buggy metadata
+
+    # Step 3: Fallback to pkg_resources (setuptools)
+    try:
+        import pkg_resources
+        for dist in pkg_resources.working_set:
+            if mod_path.startswith(dist.location):
+                return dist.project_name
+    except ImportError:
+        pass
+
+    return module_name
 
 def make_range(sl, sc, el, ec):
     return {
@@ -42,7 +103,7 @@ def save_pending_xref(end_line, end_col):
         end_col += 1
         for name in names:
             xrefs.append({
-                "name": name,
+                "name": find_distribution_for_module(name),
                 "range": make_range(
                     start_node.lineno - 1,
                     start_node.col_offset,
@@ -205,7 +266,7 @@ class ImportFinder(ast.NodeVisitor):
         if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
             for alias in impt.names:
                 xrefs.append({
-                    "name": alias.name,
+                    "name": find_distribution_for_module(alias.name),
                     "range": make_range(
                         impt.lineno - 1,
                         impt.col_offset,
@@ -222,7 +283,7 @@ class ImportFinder(ast.NodeVisitor):
         has_end = hasattr(impt, 'end_lineno') and hasattr(impt, 'end_col_offset')
         if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
             xrefs.append({
-                "name": impt.module,
+                "name": find_distribution_for_module(impt.module),
                 "range": make_range(
                     impt.lineno - 1,
                     impt.col_offset,
@@ -253,7 +314,7 @@ class ImportFinder(ast.NodeVisitor):
                 has_end = hasattr(call, 'end_lineno') and hasattr(call, 'end_col_offset')
                 if has_end and call.end_lineno is not None and call.end_col_offset is not None:
                     xrefs.append({
-                        "name": tgt,
+                        "name": find_distribution_for_module(tgt),
                         "range": make_range(
                             call.lineno - 1,
                             call.col_offset,
@@ -333,5 +394,4 @@ for xref in xrefs:
         copied_xref = dict(xref)
         copied_xref["name"] = name
         remapped_xrefs.append(copied_xref)
-print(json.dumps(remapped_xrefs))`
-}
+print(json.dumps(remapped_xrefs))

@@ -1,20 +1,14 @@
 import importFinder from './find-imports.go'
+import childProcess from 'node:child_process'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
+import os from 'node:os'
 
 let cachedBin: Promise<string> | null = null
 let lastBinPath: string | null = null
 
 export async function generateNativeGoImportBinary (goBin: string) {
-    const [
-        childProcess,
-        path,
-        fs,
-        os
-    ] = await Promise.all([
-        import('node:child_process'),
-        import('node:path'),
-        import('node:fs/promises'),
-        import('node:os')
-    ])
     if (cachedBin && lastBinPath === goBin) {
         const bin = await cachedBin.catch(() => null)
         if (bin) {
@@ -32,7 +26,8 @@ export async function generateNativeGoImportBinary (goBin: string) {
     lastBinPath = goBin
     cachedBin = (async () => {
         const outBin = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'socket-')), 'go-import-parser')
-        const build = childProcess.spawn(goBin, ['build', '-o', outBin, importFinder], {
+        const args = ['build', '-o', outBin, importFinder]
+        const build = childProcess.spawn(goBin, args, {
             cwd: __dirname
         })
     

@@ -7,3 +7,8 @@ declare module '*.go' {
     const filePath: string
     export default filePath
 }
+
+declare module '*.py' {
+    const fileContents: string
+    export default fileContents
+}

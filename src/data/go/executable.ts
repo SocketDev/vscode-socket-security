@@ -14,27 +14,47 @@ export async function initGo(): Promise<vscode.Disposable> {
 
 const warned = new Set<string>();
 
-export async function getGoExecutable(fileName?: string): Promise<string | void> {
+export async function getGoExecutable(fileName?: string): Promise<{execPath: string} | void> {
     // no executable in virtual workspace
     if (vscode.workspace.workspaceFolders?.every(f => f.uri.scheme !== 'file')) return
+    let execPath: string = 'go';
+    let usingSystemPath = true
     const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX);
     const pathOverride = workspaceConfig.get<string>('goExecutable');
     if (pathOverride) {
-        return Promise.resolve(vscode.workspace.fs.stat(vscode.Uri.file(pathOverride))).then(
-            st => {
-                if (st.type & vscode.FileType.File) return pathOverride;
+        try {
+            const st = await vscode.workspace.fs.stat(vscode.Uri.file(pathOverride))
+            if (st.type & vscode.FileType.File) {
+                usingSystemPath = false;
+                execPath = pathOverride;
+            } else {
                 throw new Error('not a file')
             }
-        ).catch(err => {
-            vscode.window.showErrorMessage(`Failed to find Go binary at '${pathOverride}'. Please update ${EXTENSION_PREFIX}.goExecutable.`)
-        })
+        } catch {
+        }
+        if (usingSystemPath) {
+            vscode.window.showErrorMessage(`Failed to find Go binary at '${pathOverride}'. Please update ${EXTENSION_PREFIX}.pythonInterpreter.`);
+        }
     }
-    const ext = await getGoExtension();
-    const cmd = await ext?.settings.getExecutionCommand(
-        'go',
-        fileName && vscode.Uri.file(fileName)
-    )
-    if (cmd) return cmd.binPath
+    if (usingSystemPath) {
+        const ext = await getGoExtension();
+        const cmd = await ext?.settings.getExecutionCommand(
+            'go',
+            fileName && vscode.Uri.file(fileName)
+        )
+        if (cmd) {
+            usingSystemPath = false;
+            execPath = cmd.binPath
+        } else {
+            // TODO: make this less noisy
+            // warnToInstallMoreReliableGo(ext);
+        }
+    }
+    return {execPath}
+}
+
+function warnToInstallMoreReliableGo(ext: vscode.Extension<any>) {
+    const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX);
     const workspaceID = vscode.workspace.name ||
         vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath).join(',') ||
         vscode.window.activeTextEditor?.document.uri.fsPath;

@@ -2,9 +2,9 @@
     "compilerOptions": {
         "module": "ESNext",
         "moduleResolution": "node",
-        "target": "es2020",
+        "target": "esnext",
         // DOM needed for WASM unfortunately
-        "lib": ["dom", "es2020"],
+        "lib": ["dom", "esnext"],
         "outDir": "out",
         "sourceMap": true,
         "rootDir": "src",
