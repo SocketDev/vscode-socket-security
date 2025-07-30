@@ -15,7 +15,7 @@ import { getGoExecutable } from '../../data/go/executable'
 import pythonImportFinder from '../../data/python/import-finder.py'
 import { generateNativeGoImportBinary } from '../../data/go/import-finder'
 import logger from '../../infra/log'
-import { isSupportedLSPLanguageId, PURL_Type, SUPPORTED_LSP_LANGUAGE_IDS } from '../languages'
+import { isSupportedLSPLanguageId, PURL_Type, SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from '../languages'
 
 export type ExternalRef = {
     name: string,
@@ -23,6 +23,9 @@ export type ExternalRef = {
 }
 
 function simpurl(eco: PURL_Type, name: string): SimPURL {
+    if (eco === 'pypi') {
+        name = name.replaceAll('-','_')
+    }
     return `pkg:${eco}/${name}`
 }
 export type SimPURL = `pkg:${PURL_Type}/${string}`
@@ -246,7 +249,7 @@ export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimP
             )
         }
     } else if (isSupportedLSPLanguageId(languageId)) {
-        if (SUPPORTED_LSP_LANGUAGE_IDS[languageId] === 'npm') {
+        if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'npm') {
             let ast: babelTypes.File
             try {
                 ast = parser.parse(
@@ -457,7 +460,7 @@ export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimP
                     }
                 }
             })
-        } else if (SUPPORTED_LSP_LANGUAGE_IDS[languageId] === 'pypi') {
+        } else if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'pypi') {
             const pythonInterpreter = await getPythonInterpreter(doc)
             if (pythonInterpreter) {
                 const proc = childProcess.spawn(pythonInterpreter.execPath, ['-c', pythonImportFinder])
@@ -497,7 +500,7 @@ export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimP
                     results.add(simpurl('pypi', name.split('.')[0]), range)
                 }
             }
-        } else if (SUPPORTED_LSP_LANGUAGE_IDS[languageId] === 'golang') {
+        } else if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'golang') {
             const goExecutable = await getGoExecutable()
             if (goExecutable) {
                 const importFinderBin = await generateNativeGoImportBinary(goExecutable.execPath)

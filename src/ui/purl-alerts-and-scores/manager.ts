@@ -198,14 +198,17 @@ export class PURLDataCache {
                 })
                 for await (const line of lines) {
                     const scoreAndAlerts = JSON.parse(line) as PackageScoreAndAlerts
-                    const purlWithoutVersion = `pkg:${scoreAndAlerts.type}/${scoreAndAlerts.namespace? scoreAndAlerts.namespace + '/' : ''}${scoreAndAlerts.name}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
-                    const purlWithVersion = `pkg:${scoreAndAlerts.type}/${scoreAndAlerts.namespace? scoreAndAlerts.namespace + '/' : ''}${scoreAndAlerts.name}@${scoreAndAlerts.version}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
+                    const type = scoreAndAlerts.type
+                    const name = type === 'pypi' ? scoreAndAlerts.name.replaceAll('-', '_') : scoreAndAlerts.name
+                    const namespace = scoreAndAlerts.namespace ? scoreAndAlerts.namespace + '/' : '';
+                    const purlWithoutVersion = `pkg:${type}/${namespace}${name}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
+                    const purlWithVersion = `pkg:${type}/${namespace}${name}@${scoreAndAlerts.version}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
                     logger.info(`Received score and alerts for PURL: ${purlWithoutVersion}`, scoreAndAlerts)
                     this.#pkgData.get(purlWithoutVersion)?.update(scoreAndAlerts);
                     this.#pkgData.get(purlWithVersion)?.update(scoreAndAlerts);
 
                     thesePendingUpdates.delete(purlWithoutVersion)
-                    thesePendingUpdates.delete(purlWithVersion);
+                  thesePendingUpdates.delete(purlWithVersion);
                 }
                 bailPendingCacheEntries(new Error('Not Found'))
             } catch (e) {

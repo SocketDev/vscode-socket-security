@@ -5,7 +5,7 @@ import { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager'
 import { isGoBuiltin } from '../data/go/builtins'
 import logger from '../infra/log'
 import { PURLPackageData } from './purl-alerts-and-scores/manager';
-import { SUPPORTED_LSP_LANGUAGE_IDS } from './languages';
+import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages';
 import { isPythonBuiltin } from '../data/python/interpreter';
 import * as Module from 'module';
 import { log } from 'console'
@@ -13,7 +13,7 @@ import { getGlobPatterns } from '../data/glob-patterns'
 
 export async function activate(context: vscode.ExtensionContext) {
     const decoManager = new DecorationManager(context);
-    for (const lang of Object.keys(SUPPORTED_LSP_LANGUAGE_IDS)) {
+    for (const lang of Object.keys(SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER)) {
         vscode.languages.registerHoverProvider({
             language: lang,
         }, {
@@ -169,7 +169,9 @@ let isBuiltin = (name: string, eco: string): boolean => {
 }
 
 let isLocalPackage = (name: string, eco: string): boolean => {
-    if (eco === 'npm') return name.startsWith('.') || name.startsWith('/')
+    if (eco === 'npm') {
+        return name.startsWith('.') || name.startsWith('/') || name.startsWith('#')
+    }
     if (eco === 'pypi') return name.startsWith('.')
     if (eco === 'go') {
         const parts = name.split('/')
