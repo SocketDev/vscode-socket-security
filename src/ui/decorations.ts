@@ -159,7 +159,6 @@ class DecorationManagerForPURLCache {
     }
 }
 
-// @ts-expect-error missing def
 let isNodeBuiltin: (name: string) => boolean = Module.isBuiltin
 
 let isBuiltin = (name: string, eco: string): boolean => {
@@ -340,7 +339,7 @@ ${([
     }
 }
 class DecorationManagerForDocument {
-    externalRefs: Map<SimPURL, vscode.Range[]> = new Map();
+    externalRefs: Map<SimPURL, {ranges: vscode.Range[]}> = new Map();
     currentDocUpdate: AbortController = new AbortController
     isDirty: boolean = false;
     docURI: TextDocumentURIString;
@@ -349,7 +348,7 @@ class DecorationManagerForDocument {
     // parameterized, shared across all instances
     purlManagers: DecorationManagerForPURLCache
     async provideHover(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Hover | undefined> {
-        for (const [purl, ranges] of this.externalRefs) {
+        for (const [purl, {ranges}] of this.externalRefs) {
             for (const range of ranges) {
                 const intersects = range.contains(position)
                 // logger.warn(document.getText(range), 'hovering over range', range, 'for purl', purl, 'intersects:', intersects, 'at position', position);
@@ -391,18 +390,18 @@ class DecorationManagerForDocument {
         let isDirty = this.externalRefs.size !== externals.size;
         if (!isDirty) {
             check_each_purl_is_same_ranges:
-            for (const [purl, ranges] of externals) {
+            for (const [purl, {ranges}] of externals) {
                 const existing = this.externalRefs.get(purl);
                 if (!existing) {
                     isDirty = true;
                     break;
                 }
-                if (existing.length !== ranges.length) {
+                if (existing.ranges.length !== ranges.length) {
                     isDirty = true;
                     break;
                 }
-                for (let i = 0; i < existing.length; i++) {
-                    if (!ranges[i].isEqual(existing[i])) {
+                for (let i = 0; i < existing.ranges.length; i++) {
+                    if (!ranges[i].isEqual(existing.ranges[i])) {
                         isDirty = true;
                         break check_each_purl_is_same_ranges;
                     }
@@ -428,7 +427,7 @@ class DecorationManagerForDocument {
     decorations: Map<vscode.TextEditorDecorationType, vscode.Range[]> = new Map()
     createDecorations() {
         const newDecorations: typeof this['decorations'] = new Map();
-        for (const [purl, ranges] of this.externalRefs) {
+        for (const [purl, {ranges}] of this.externalRefs) {
             const purlManager = this.purlManagers.for(purl);
             if (!purlManager.decorationType) {
                 logger.warn(`No decoration type for PURL ${purl}, skipping decoration creation`);

@@ -1,8 +1,6 @@
 import * as vscode from 'vscode'
 import { parseTOML, getStaticTOMLValue } from 'toml-eslint-parser';
 import ini from 'ini'
-import { Octokit } from 'octokit';
-import { getWorkspaceFolderURI } from '../util';
 
 function orgOrUserFromString(url: string): string | undefined {
     const ghHTTP = /^(?:git\+)?https?:\/\/(?:www.)?github.com(?::80|:443)?\/(?<target>[^\/\?#]*)(?=\/|$)/u;
@@ -76,59 +74,4 @@ export async function sniffForGithubOrgOrUser(workspaceRootURI: vscode.Uri): Pro
             }
         }
     } catch (e) {}
-}
-
-export function installGithubApp(uri: vscode.Uri) {return
-    vscode.authentication.getSession('github', [
-        'read:user',
-        'read:org'
-    ], {
-        createIfNone: true,
-    }).then(
-        async s => {
-            const client = new Octokit({
-                auth: s.accessToken,
-            })
-            let workspaceFolderURI = getWorkspaceFolderURI(uri)
-            if (!workspaceFolderURI) {
-                // can't be smart, just open it
-                workspaceFolderURI = vscode.Uri.joinPath(uri, '.')
-            }
-            const orgOrUser = await sniffForGithubOrgOrUser(workspaceFolderURI)
-            const currentUser = await client.rest.users.getAuthenticated()
-            let id
-            if (currentUser.data.login === orgOrUser) {
-                id = currentUser.data.id
-            } else {
-                const userOrgs = await client.rest.orgs.listForAuthenticatedUser()
-                const matchingOrg = userOrgs.data.find(org => {
-                    return org.login === orgOrUser
-                })
-                if (matchingOrg) {
-                    id = matchingOrg.id
-                }
-            }
-            if (id) {
-                vscode.env.openExternal(
-                    vscode.Uri.parse(
-                        `https://github.com/apps/socket-security/installations/new/permissions?target_id=${id}`
-                    )
-                )
-            } else {
-                vscode.env.openExternal(
-                    vscode.Uri.parse(
-                        `https://github.com/apps/socket-security/installations/new/`
-                    )
-                )
-            }
-        },
-        () => {
-            // user did not want to use vscode auth
-            vscode.env.openExternal(
-                vscode.Uri.parse(
-                    `https://github.com/apps/socket-security/installations/new/`
-                )
-            )
-        }
-    )
 }

@@ -1,34 +1,11 @@
-import type { SocketYml } from '@socketsecurity/config'
 import * as toml from 'toml-eslint-parser'
 import * as vscode from 'vscode'
-import { IssueRules, mergeDefaults, mergeRules, ruleStrength } from './data/socket-api-config'
 
 export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
 export const EXTENSION_PREFIX = 'socket-security'
 
 const SEVERITY_LEVELS = ['low', 'middle', 'high', 'critical']
 
-export function getDiagnosticSeverity(type: string, severity: string, enforcedRules: IssueRules, issueRules: IssueRules, socketYamlConfig: SocketYml): vscode.DiagnosticSeverity | null {
-    const fullRules: IssueRules = mergeDefaults(
-        mergeRules(enforcedRules, socketYamlConfig.issueRules),
-        issueRules
-    )
-    const editorConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)
-    const handling = ruleStrength(fullRules[type])
-    if (handling < 2) return null
-
-    const curLevel = SEVERITY_LEVELS.indexOf(severity)
-    const minLevel = SEVERITY_LEVELS.indexOf(editorConfig.get('minIssueLevel') as string)
-    if (curLevel >= minLevel) {
-        // TODO: change behavior?
-        return handling === 2
-            ? curLevel > 1
-                ? vscode.DiagnosticSeverity.Warning
-                : vscode.DiagnosticSeverity.Information
-            : vscode.DiagnosticSeverity.Error
-    }
-    return null
-}
 /**
  * sort by severity, otherwise sort by type lexicographically
  */

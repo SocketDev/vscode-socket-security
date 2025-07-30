@@ -132,7 +132,7 @@ export class PURLDataCache {
         ;(async () => {
             // microtask to allow other updates to be queued
             await null
-            const thesePendingUpdates = Array.from(this.#pkgsNeedingUpdate);
+            const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate));
             this.#pkgsNeedingUpdate.clear()
             for (const purl of thesePendingUpdates) {
                 this.#currentPendingUpdates.add(purl);
@@ -162,7 +162,7 @@ export class PURLDataCache {
                     },
                     signal: controller.signal
                 })
-                logger.info(`Requesting Socket API for PURLs: ${thesePendingUpdates.join(', ')}`)
+                logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
                 function cleanupReq() {
                     try {
                         req.destroy()
@@ -171,7 +171,7 @@ export class PURLDataCache {
                 }
                 controller.signal.addEventListener('abort', cleanupReq)
                 const body = JSON.stringify({
-                    components: thesePendingUpdates.map(str => ({
+                    components: [...thesePendingUpdates].map(str => ({
                         purl: str
                     }))
                 })
@@ -185,8 +185,8 @@ export class PURLDataCache {
                     }
                 }
                 controller.signal.addEventListener('abort', cleanupRes)
-                logger.info(`Received response from Socket API for PURLs: ${thesePendingUpdates.join(', ')}`, res.statusCode, res.statusMessage)
-                
+                logger.info(`Received response from Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`, res.statusCode, res.statusMessage)
+
                 if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
                     throw new Error(`Unexpected response from Socket API: ${res.statusCode} ${res.statusMessage}`)
                 }
@@ -203,6 +203,9 @@ export class PURLDataCache {
                     logger.info(`Received score and alerts for PURL: ${purlWithoutVersion}`, scoreAndAlerts)
                     this.#pkgData.get(purlWithoutVersion)?.update(scoreAndAlerts);
                     this.#pkgData.get(purlWithVersion)?.update(scoreAndAlerts);
+
+                    thesePendingUpdates.delete(purlWithoutVersion)
+                    thesePendingUpdates.delete(purlWithVersion);
                 }
                 bailPendingCacheEntries(new Error('Not Found'))
             } catch (e) {

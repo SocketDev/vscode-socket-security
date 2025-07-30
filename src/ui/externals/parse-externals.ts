@@ -27,14 +27,14 @@ function simpurl(eco: PURL_Type, name: string): SimPURL {
 }
 export type SimPURL = `pkg:${PURL_Type}/${string}`
 export class ExternalPurlRangeManager {
-    externals = new Map<SimPURL, vscode.Range[]>();
-    add(purl: SimPURL, range: vscode.Range): void {
+    externals = new Map<SimPURL, {builtin: boolean, ranges: vscode.Range[]}>();
+    add(purl: SimPURL, range: vscode.Range, builtin: boolean = false): void {
         let group = this.externals.get(purl)
         if (!group) {
-            group = []
+            group = {builtin, ranges: []}
             this.externals.set(purl, group)
         }
-        group.push(range)
+        group.ranges.push(range)
     }
 }
 
@@ -65,7 +65,7 @@ function hydrateJSONRefs(src: string): ExternalRef[] {
 }
 
 
-export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimPURL, vscode.Range[]> | null> {
+export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimPURL, {builtin: boolean, ranges: vscode.Range[]}> | null> {
     const languageId = doc.languageId
     const src = doc.getText()
     const results = new ExternalPurlRangeManager()
@@ -461,9 +461,9 @@ export async function parseExternals(doc: vscode.TextDocument): Promise<Map<SimP
             const pythonInterpreter = await getPythonInterpreter(doc)
             if (pythonInterpreter) {
                 const proc = childProcess.spawn(pythonInterpreter.execPath, ['-c', pythonImportFinder])
-                console.error(pythonInterpreter.execPath) // DEBUG
                 proc.stdin.end(src)
                 const output = await text(proc.stdout)
+                const stderr = await text(proc.stderr)
                 if (!output) return null
                 const refs = hydrateJSONRefs(output)
                 for (const ref of refs) {

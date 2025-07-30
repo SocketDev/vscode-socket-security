@@ -1,36 +1,89 @@
-import ast, tokenize, token, json, sys, io, importlib
+
+import ast
+import io
+import json
+import os
+import sys
+import token
+import tokenize
+
+# Optional imports with guards for Python 2.7+ compatibility
+try:
+    import importlib
+except ImportError:
+    importlib = None
+
+try:
+    import pkgutil
+except ImportError:
+    pkgutil = None
+
+
+# Collect paths
+stdlib_path = os.path.dirname(os.__file__)
+
+
+# Built-in modules
+builtin_modules = set(sys.builtin_module_names)
+
+# Standard library modules
+if pkgutil is not None:
+    stdlib_modules = set(
+        module.name for module in pkgutil.iter_modules([stdlib_path])
+    )
+else:
+    stdlib_modules = set()
 
 src = sys.stdin.read()
 src_lines = src.split(u'\\n')
 
+def ImportReference(name, start_line, start_col, end_line, end_col):
+    return {
+        "name": find_distribution_for_module(name),
+        "is_builtin": (name in stdlib_modules) or (name in builtin_modules),
+        "range": {
+            "start": {"line": start_line, "character": start_col},
+            "end": {"line": end_line, "character": end_col}
+        }
+    }
+
 xrefs = []
 pending_xref = None
 
+
 def get_module_file_path(module_name):
+    # Preferred: Python 3.4+
     try:
-        # Preferred: Python 3.4+
-        import importlib.util
-        spec = importlib.util.find_spec(module_name)
-        if spec and spec.origin:
-            return spec.origin
-    except ImportError:
-        pass
-
-    try:
-        # Fallback for Python 2.7+
-        import pkgutil
-        loader = pkgutil.get_loader(module_name)
-        if loader:
+        if importlib is not None:
             try:
-                return loader.get_filename()
-            except AttributeError:
+                import importlib.util
+                spec = importlib.util.find_spec(module_name)
+                if spec and spec.origin:
+                    return spec.origin
+            except (ImportError, AttributeError):
                 pass
-    except ImportError:
+    except Exception:
         pass
 
-    mod = __import__(module_name)
-    mod_path = getattr(mod, '__file__', None)
-    return mod_path
+    # Fallback for Python 2.7+
+    try:
+        if pkgutil is not None:
+            loader = pkgutil.get_loader(module_name)
+            if loader:
+                try:
+                    return loader.get_filename()
+                except AttributeError:
+                    pass
+    except Exception:
+        pass
+
+    try:
+        mod = __import__(module_name)
+        mod_path = getattr(mod, '__file__', None)
+        return mod_path
+    except Exception:
+        return None
+
 
 
 def find_distribution_for_module(module_name):
@@ -39,24 +92,30 @@ def find_distribution_for_module(module_name):
         mod_path = get_module_file_path(module_name)
         if not mod_path:
             return module_name
-    except ImportError as e:
+    except ImportError:
+        return module_name
+    except Exception:
         return module_name
 
     # Step 2: Try importlib.metadata (Python 3.8+)
+    metadata = None
     try:
-        import importlib.metadata as metadata
-    except ImportError:
-        metadata = None
+        import importlib
         try:
-            import importlib_metadata as metadata  # type: ignore # Backport (optional)
+            import importlib.metadata as metadata
         except ImportError:
-            pass  # Still None if not available
+            try:
+                import importlib_metadata as metadata  # type: ignore # Backport (optional)
+            except ImportError:
+                metadata = None
+    except ImportError:
+        pass
 
     if metadata is not None:
         try:
             for dist in metadata.distributions():
                 try:
-                    if any(str(file) in mod_path for file in dist.files or []):
+                    if any(str(file) in mod_path for file in getattr(dist, 'files', []) or []):
                         return dist.metadata['Name']
                 except Exception:
                     continue
@@ -67,24 +126,12 @@ def find_distribution_for_module(module_name):
     try:
         import pkg_resources
         for dist in pkg_resources.working_set:
-            if mod_path.startswith(dist.location):
+            if dist.location and mod_path.startswith(dist.location):
                 return dist.project_name
     except ImportError:
         pass
 
     return module_name
-
-def make_range(sl, sc, el, ec):
-    return {
-        "start": {
-            "line": sl,
-            "character": sc
-        },
-        "end":  {
-            "line": el,
-            "character": ec
-        }
-    }
 
 def set_loc(node):
     save_pending_xref(node.lineno - 1, node.col_offset - 1)
@@ -102,15 +149,15 @@ def save_pending_xref(end_line, end_col):
             end_col -= 1
         end_col += 1
         for name in names:
-            xrefs.append({
-                "name": find_distribution_for_module(name),
-                "range": make_range(
+            xrefs.append(
+                ImportReference(
+                    name,
                     start_node.lineno - 1,
                     start_node.col_offset,
                     end_line,
                     end_col
                 )
-            })
+            )
         pending_xref = None
 
 unops = {
@@ -265,15 +312,12 @@ class ImportFinder(ast.NodeVisitor):
         has_end = hasattr(impt, 'end_lineno') and hasattr(impt, 'end_col_offset')
         if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
             for alias in impt.names:
-                xrefs.append({
-                    "name": find_distribution_for_module(alias.name),
-                    "range": make_range(
+                xrefs.append(ImportReference(alias.name,
                         impt.lineno - 1,
                         impt.col_offset,
                         impt.end_lineno - 1,
                         impt.end_col_offset
-                    )
-                })
+                    ))
         else:
             pending_xref = [alias.name for alias in impt.names], impt
 
@@ -282,15 +326,12 @@ class ImportFinder(ast.NodeVisitor):
         set_loc(impt)
         has_end = hasattr(impt, 'end_lineno') and hasattr(impt, 'end_col_offset')
         if has_end and impt.end_lineno is not None and impt.end_col_offset is not None:
-            xrefs.append({
-                "name": find_distribution_for_module(impt.module),
-                "range": make_range(
+            xrefs.append(ImportReference(impt.module,
                     impt.lineno - 1,
                     impt.col_offset,
                     impt.end_lineno - 1,
                     impt.end_col_offset
-                )
-            })
+                ))
         else:
             pending_xref = [impt.module], impt
 
@@ -313,15 +354,12 @@ class ImportFinder(ast.NodeVisitor):
                     raise ValueError("failed to resolve import")
                 has_end = hasattr(call, 'end_lineno') and hasattr(call, 'end_col_offset')
                 if has_end and call.end_lineno is not None and call.end_col_offset is not None:
-                    xrefs.append({
-                        "name": find_distribution_for_module(tgt),
-                        "range": make_range(
+                    xrefs.append(ImportReference(tgt,
                             call.lineno - 1,
                             call.col_offset,
                             call.end_lineno - 1,
                             call.end_col_offset
-                        )
-                    })
+                        ))
                 else:
                     pending_xref = [tgt], call
             except:
@@ -354,7 +392,9 @@ while True:
         tokens = tokenize.generate_tokens(io.StringIO(src).readline)
         newlines = (token.NEWLINE, token.NL) if hasattr(token, 'NL') else (token.NEWLINE, tokenize.NL)
         for t in tokens:
-            if t[2][0] == err_lineno or t[0] in newlines and t[2][0] == err_lineno - 1:
+            if err_lineno is None:
+                pass
+            elif t[2][0] == err_lineno or t[0] in newlines and t[2][0] == err_lineno - 1:
                 break
             elif t[0] == token.OP and t[1] == ":":
                 last_colon = True
@@ -381,16 +421,23 @@ visitor = ImportFinder()
 visitor.visit(full_ast)
 save_pending_xref(len(src_lines) - 1, len(src_lines[-1]) - 1)
 
+
+# Guard for importlib usage in remapping
 try:
-    metadata = importlib.import_module("importlib.metadata")
-    namemap = metadata.packages_distributions()
-except:
+    if importlib is not None:
+        metadata = importlib.import_module("importlib.metadata")
+        namemap = metadata.packages_distributions()
+    else:
+        namemap = {}
+except Exception:
     namemap = {}
 
 remapped_xrefs = []
 for xref in xrefs:
+    print(xref, file=sys.stderr)
     top_pkg = xref["name"].split(".")[0]
     for name in namemap.get(top_pkg, [top_pkg]):
+        print(f"Remapping {xref['name']} to {name}", file=sys.stderr)
         copied_xref = dict(xref)
         copied_xref["name"] = name
         remapped_xrefs.append(copied_xref)
