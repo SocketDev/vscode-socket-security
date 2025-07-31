@@ -57,9 +57,9 @@ export class PURLPackageData {
         try {
             fs.mkdirSync(cacheDir, { recursive: true })
             fs.writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2))
-            logger.info(`Wrote PURL data to disk for ${this.purl} at ${filePath}`)
+            logger.debug(`Wrote PURL data to disk for ${this.purl} at ${filePath}`)
         } catch (e) {
-            logger.error(`Failed to write PURL data to disk for ${this.purl}`, e)
+            logger.debug(`Failed to write PURL data to disk for ${this.purl}`, e)
         }
     }
     readPkgDataFromDisk() {
@@ -69,11 +69,11 @@ export class PURLPackageData {
             this.pkgData = JSON.parse(data);
             this.mtime = fs.statSync(filePath).mtimeMs;
         } catch (e) {
-            logger.error(`Failed to read PURL data from disk for ${this.purl}`, e)
+            logger.debug(`Failed to read PURL data from disk for ${this.purl}`, e)
         }
     }
     isStale() {
-        return this.mtime + 10 * 60 * 1000 < Date.now(); // 10 minutes
+        return true; this.mtime + 10 * 60 * 1000 < Date.now(); // 10 minutes
     }
     subscribe(cb: (pkgData: PURLPackageData) => void) {
         this.watchers.add(cb);
@@ -121,7 +121,7 @@ export class PURLDataCache {
         }
         const thisIsTheBusForTheseUpdates = this.#pkgsNeedingUpdate.size === 0;
         this.#pkgsNeedingUpdate.add(purl);
-        logger.info(`is bus`, thisIsTheBusForTheseUpdates, `for`, purl, `pending updates:`, this.#currentPendingUpdates.size, `queued updates:`, this.#pkgsNeedingUpdate.size);
+        // logger.info(`is bus`, thisIsTheBusForTheseUpdates, `for`, purl, `pending updates:`, this.#currentPendingUpdates.size, `queued updates:`, this.#pkgsNeedingUpdate.size);
         if (!thisIsTheBusForTheseUpdates) {
             return; // already scheduled a bus trip
         }
@@ -139,7 +139,7 @@ export class PURLDataCache {
             }
             const bailPendingCacheEntries = (reason?: Error) => {
                 for (const purl of thesePendingUpdates) {
-                    logger.error(`Bailing pending cache entry for PURL: ${purl}`, reason?.message);
+                    logger.debug(`Bailing pending cache entry for PURL: ${purl}`, reason?.message);
                     this.#currentPendingUpdates.delete(purl);
                     this.#pkgData.get(purl)?.setError('Unable to load data from Socket API' + (reason ? `: ${reason.message}` : ''));
                 }
@@ -162,7 +162,7 @@ export class PURLDataCache {
                     },
                     signal: controller.signal
                 })
-                logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
+                // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
                 function cleanupReq() {
                     try {
                         req.destroy()
@@ -175,7 +175,6 @@ export class PURLDataCache {
                         purl: str
                     }))
                 })
-                logger.info(body)
                 req.end(body )
                 const [res] = (await once(req, 'response')) as unknown as [IncomingMessage]
                 function cleanupRes() {
@@ -185,7 +184,7 @@ export class PURLDataCache {
                     }
                 }
                 controller.signal.addEventListener('abort', cleanupRes)
-                logger.info(`Received response from Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`, res.statusCode, res.statusMessage)
+                logger.debug(`Received response from Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`, res.statusCode, res.statusMessage)
 
                 if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
                     throw new Error(`Unexpected response from Socket API: ${res.statusCode} ${res.statusMessage}`)
@@ -203,7 +202,6 @@ export class PURLDataCache {
                     const namespace = scoreAndAlerts.namespace ? scoreAndAlerts.namespace + '/' : '';
                     const purlWithoutVersion = `pkg:${type}/${namespace}${name}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
                     const purlWithVersion = `pkg:${type}/${namespace}${name}@${scoreAndAlerts.version}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
-                    logger.info(`Received score and alerts for PURL: ${purlWithoutVersion}`, scoreAndAlerts)
                     this.#pkgData.get(purlWithoutVersion)?.update(scoreAndAlerts);
                     this.#pkgData.get(purlWithVersion)?.update(scoreAndAlerts);
 

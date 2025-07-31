@@ -8,7 +8,6 @@ import { PURLPackageData } from './purl-alerts-and-scores/manager';
 import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages';
 import { isPythonBuiltin } from '../data/python/interpreter';
 import * as Module from 'module';
-import { log } from 'console'
 import { getGlobPatterns } from '../data/glob-patterns'
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -50,7 +49,7 @@ class DecorationTypes {
             height: '12px',
         },
     });
-    logger.info('Created error decoration', this.errorDecoration.key);
+    // logger.debug('Created error decoration', this.errorDecoration.key);
     this.warningDecoration = vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
         after: {
@@ -60,11 +59,11 @@ class DecorationTypes {
             height: '12px',
         },
     });
-    logger.info('Created warning decoration', this.warningDecoration.key);
+    // logger.debug('Created warning decoration', this.warningDecoration.key);
     this.informativeDecoration = vscode.window.createTextEditorDecorationType({
         isWholeLine: true
     });
-    logger.info('Created informative decoration', this.informativeDecoration.key);
+    // logger.debug('Created informative decoration', this.informativeDecoration.key);
 }
 }
 
@@ -383,8 +382,8 @@ class DecorationManagerForDocument {
         const thisDocUpdateSignal = this.currentDocUpdate.signal;
         const externals = await parseExternals(doc);
         if (!externals) return;
-        logger.info(`Parsed externals for ${docURI}:`, externals.size, 'externals found, aborted:', thisDocUpdateSignal.aborted);
-        logger.info([...externals.keys()].join(', '));
+        logger.debug(`Parsed externals for ${docURI}:`, externals.size, 'externals found, aborted:', thisDocUpdateSignal.aborted);
+        logger.debug([...externals.keys()].join(', '));
         if (thisDocUpdateSignal.aborted) {
             console.info(`Decoration update for ${docURI} was aborted (parsing externals took longer than next update), skipping.`);
             return;
@@ -454,16 +453,16 @@ class DecorationManagerForDocument {
     async #decorateEverything(thisDecorationUpdateSignal = this.currentDocUpdate.signal) {
         if (!this.isDirty) return;
         let pending = [];
-        logger.info(`Updating decorations for ${this.docURI} with externals:`, this.externalRefs.size, 'externals found');
+        logger.debug(`Updating decorations for ${this.docURI} with externals:`, this.externalRefs.size, 'externals found');
         for (const editor of vscode.window.visibleTextEditors) {
             const editorURI = editor.document.uri.toString() as TextDocumentURIString;
             if (editorURI === this.docURI) {
-                logger.info(`Matching editor ${editorURI} for decoration update`);
+                logger.debug(`Matching editor ${editorURI} for decoration update`);
                 pending.push(editor)
             }
         }
         if (pending.length === 0) {
-            logger.info(`No editors found for ${this.docURI}, skipping decoration update`);
+            logger.debug(`No editors found for ${this.docURI}, skipping decoration update`);
             return;
         }
         this.createDecorations();
