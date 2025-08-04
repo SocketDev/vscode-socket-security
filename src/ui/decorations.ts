@@ -202,6 +202,9 @@ class DecorationManagerForPURL {
         // we don't need to watch for builtin or local packages
         this.isBuiltin = isBuiltin(name, eco)
         this.isLocalPackage = isLocalPackage(name, eco);
+        if (this.isBuiltin || this.isLocalPackage) {
+            return
+        }
         this.subscriptionCallback = ((data) => {
             this.packageData = data;
             this.#eagerDecoration();
@@ -380,7 +383,10 @@ class DecorationManagerForDocument {
         this.currentDocUpdate.abort();
         this.currentDocUpdate = new AbortController();
         const thisDocUpdateSignal = this.currentDocUpdate.signal;
-        const externals = await parseExternals(doc);
+        let externals;
+        try {
+            externals = await parseExternals(doc);
+        } catch {}
         if (!externals) return;
         logger.debug(`Parsed externals for ${docURI}:`, externals.size, 'externals found, aborted:', thisDocUpdateSignal.aborted);
         logger.debug([...externals.keys()].join(', '));
@@ -482,11 +488,11 @@ class DecorationManagerForDocument {
     }
 }
 const getPURLParts = (purl: SimPURL) => {
-    const groups = /^pkg:(?<eco>[^\/]+)\/(?<name>.+)$/v.exec(purl)?.groups
-    return groups as {
+    const groups = /^pkg:(?<eco>[^\/]+)\/(?<name>.*)$/v.exec(purl)?.groups
+    return (groups as {
         eco: string;
         name: string;
-    }
+    }) ?? { eco: 'unknown', name: 'unknown' }
 }
 /**
  * VSCode makes strong guarantee about 1<->1 text document URI to TextDocument mapping.
