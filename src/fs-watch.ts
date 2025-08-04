@@ -1,3 +1,4 @@
+// This file exists because vscode performs poorly when having many file watchers
 import * as vscode from 'vscode';
 
 export type SharedFilesystemWatcherHandler = Partial<{

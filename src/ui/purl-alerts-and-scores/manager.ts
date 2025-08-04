@@ -3,12 +3,17 @@ import https from 'https'
 import { createInterface } from 'readline'
 import { once } from 'events'
 import type { IncomingMessage } from 'http'
-import { getAPIConfig, toAuthHeader } from '../../data/socket-api-config'
 import logger from '../../infra/log'
 import os from 'os'
 import path from 'path'
 import fs from 'fs'
+import { getAuthHeader, getAPIKey } from '../../auth'
+// if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
+
+export function clearCache() {
+    fs.rmSync(cacheDir, { recursive: true, force: true })
+}
 
 export type PackageScoreAndAlerts = {
     alerts: Array<{
@@ -73,7 +78,7 @@ export class PURLPackageData {
         }
     }
     isStale() {
-        return true; this.mtime + 10 * 60 * 1000 < Date.now(); // 10 minutes
+        return this.mtime + 10 * 60 * 1000 < Date.now(); // 10 minutes
     }
     subscribe(cb: (pkgData: PURLPackageData) => void) {
         this.watchers.add(cb);
@@ -149,8 +154,8 @@ export class PURLDataCache {
                 bailPendingCacheEntries(controller.signal.reason || new Error('Aborted'))
             })
             try {
-                const apiConfig = await getAPIConfig()
-                if (!apiConfig) {
+                const apiKey = await getAPIKey()
+                if (!apiKey) {
                     bailPendingCacheEntries()
                     return
                 }
@@ -158,7 +163,7 @@ export class PURLDataCache {
                     method: 'POST',
                     headers: {
                         'content-type': 'application/json',
-                        'authorization': toAuthHeader(apiConfig.apiKey)
+                        'authorization': getAuthHeader(apiKey),
                     },
                     signal: controller.signal
                 })

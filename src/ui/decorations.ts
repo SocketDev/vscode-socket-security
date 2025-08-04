@@ -22,18 +22,18 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     }
     const patterns = await getGlobPatterns();
-    // for (const [group, patternsForGroup] of Object.entries(patterns)) {
-    //     for (const [name, {pattern}] of Object.entries(patternsForGroup)) {
+    for (const [group, patternsForGroup] of Object.entries(patterns)) {
+        for (const [name, {pattern}] of Object.entries(patternsForGroup)) {
             vscode.languages.registerHoverProvider({
-                language: 'json',
-                // pattern,
+                // language: 'json',
+                pattern,
             }, {
                 provideHover(document, position) {
                     return decoManager.docManagers.get(document.uri.toString() as TextDocumentURIString)?.provideHover(document, position);
                 }
             })  
-        //  }
-    // }
+         }
+    }
 }
 class DecorationTypes {
     informativeDecoration: vscode.TextEditorDecorationType
