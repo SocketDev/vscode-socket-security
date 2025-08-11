@@ -22,6 +22,7 @@ export type PackageScoreAndAlerts = {
         severity: 'critical' | 'high' | 'medium' | 'low',
         props: any
     }>,
+    inputPurl: SimPURL,
     score: {
         license: number,
         maintenance: number,
@@ -202,16 +203,9 @@ export class PURLDataCache {
                 })
                 for await (const line of lines) {
                     const scoreAndAlerts = JSON.parse(line) as PackageScoreAndAlerts
-                    const type = scoreAndAlerts.type
-                    const name = type === 'pypi' ? scoreAndAlerts.name.replaceAll('-', '_') : scoreAndAlerts.name
-                    const namespace = scoreAndAlerts.namespace ? scoreAndAlerts.namespace + '/' : '';
-                    const purlWithoutVersion = `pkg:${type}/${namespace}${name}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
-                    const purlWithVersion = `pkg:${type}/${namespace}${name}@${scoreAndAlerts.version}${scoreAndAlerts.qualifiers ? '?' + scoreAndAlerts.qualifiers : ''}${scoreAndAlerts.subpath ? '#' + scoreAndAlerts.subpath : ''}` as SimPURL;
-                    this.#pkgData.get(purlWithoutVersion)?.update(scoreAndAlerts);
-                    this.#pkgData.get(purlWithVersion)?.update(scoreAndAlerts);
-
-                    thesePendingUpdates.delete(purlWithoutVersion)
-                  thesePendingUpdates.delete(purlWithVersion);
+                    const inputPurl = scoreAndAlerts.inputPurl
+                    this.#pkgData.get(inputPurl)?.update(scoreAndAlerts);
+                    thesePendingUpdates.delete(inputPurl)
                 }
                 bailPendingCacheEntries(new Error('Not Found'))
             } catch (e) {
