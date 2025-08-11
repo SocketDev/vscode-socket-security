@@ -33,7 +33,7 @@
     },
     "icon": "socket-square.png",
     "activationEvents": [
-        "workspaceConatains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
+        "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
         "workspaceContains:**/[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
         "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
         "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
@@ -41,6 +41,9 @@
         "workspaceContains:**/[gG][oO].[sS][uU][mM]",
         "onLanguage:python",
         "onLanguage:javascript",
+        "onLanguage:javascriptreact",
+        "onLanguage:typescript",
+        "onLanguage:typescriptreact",
         "onLanguage:go"
     ],
     "type": "commonjs",

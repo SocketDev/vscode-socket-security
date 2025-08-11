@@ -267,14 +267,26 @@ class DecorationManagerForPURL {
             // this is a bit lossy, but better than noise
             let typesListed = new Set<string>();
             for (const alert of actionGroupedAlertSet) {
-                let extra = color('#888888', '&nbsp;');
-                if (alert.props?.alternatePackage) {
-                    extra = `Possible intent: [${name} $(link-external)](https://socket.dev/${eco}/package/${name})`
-                } else if (alert.props?.lastPublish) {
-                    const lastPublish = new Date(alert.props.lastPublish).toLocaleDateString();
-                    extra = `Last published on: ${lastPublish}`;
-                } else if (typesListed.has(alert.type)) {
+                // vscode markdown wants some kind of text for the table layout
+                let extra = []
+                let alternatePackage = alert.props?.alternatePackage;
+                let lastPublish = alert.props?.lastPublish;
+                let note = alert.props?.note;
+                if (alternatePackage) {
+                    extra.push(`Possible intent: [${alternatePackage} $(link-external)](https://socket.dev/${eco}/package/${alternatePackage})`)
+                }
+                if (lastPublish) {
+                    const lastPublishStr = new Date(alert.props.lastPublish).toLocaleDateString();
+                    extra.push(`Last published on: ${lastPublishStr}`);
+                }
+                if (note) {
+                    extra.push(`${note}`);
+                }
+                if (typesListed.has(alert.type)) {
                     continue
+                }
+                if (extra.length === 0) {
+                    extra.push(color('#888888', '&nbsp;'));
                 }
                 typesListed.add(alert.type);
                 const rowColor = {
@@ -283,7 +295,7 @@ class DecorationManagerForPURL {
                     'monitor': '#aaaa00',
                     'ignore': '#888888',
                 }[alert.action]
-                ret.push([alert.action, alert.type, extra].map(
+                ret.push([alert.action, alert.type, extra.join('<br>').replaceAll(/\r?\n/g, '<br>')].map(
                     (str) => color(rowColor, str) // color the action column
                 ).join(' | '));
             }
