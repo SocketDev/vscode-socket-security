@@ -2,7 +2,7 @@
     "name": "vscode-socket-security",
     "displayName": "Socket Security",
     "description": "Editor integration with Socket Security",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "private": true,
     "preview": false,
     "categories": [
@@ -77,6 +77,12 @@
                 "category": "Socket Security",
                 "command": "socket-security.login"
             }
+        ],
+        "mcpServerDefinitionProviders": [
+            {
+                "id": "socket-security.mcp-server",
+                "label": "[Extension] Socket Security"
+            }
         ]
     },
     "bugs": {
@@ -87,7 +93,7 @@
         "vscode:prepublish": "npm run esbuild -- --minify",
         "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
         "esbuild-base": "esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --sourcemap",
-        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts",
+        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
         "compile": "npm run esbuild",
