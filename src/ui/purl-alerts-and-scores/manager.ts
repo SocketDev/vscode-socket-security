@@ -160,7 +160,7 @@ export class PURLDataCache {
                     bailPendingCacheEntries()
                     return
                 }
-                const req = https.request(`https://api.socket.dev/v0/purl?alerts=true&compact=false'`, {
+                const req = https.request('https://api.socket.dev/v0/purl?alerts=true&compact=false', {
                     method: 'POST',
                     headers: {
                         'content-type': 'application/json',
@@ -181,7 +181,7 @@ export class PURLDataCache {
                         purl: str
                     }))
                 })
-                req.end(body )
+                req.end(body)
                 const [res] = (await once(req, 'response')) as unknown as [IncomingMessage]
                 function cleanupRes() {
                     try {

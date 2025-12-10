@@ -7,7 +7,6 @@ import https from 'node:https'
 import { once } from 'node:events'
 import { IncomingMessage } from 'node:http'
 import { text } from 'node:stream/consumers'
-import fs from 'fs'
 import { randomUUID } from 'node:crypto'
 const { SOCKET_PUBLIC_API_TOKEN } = constants
 export type APIConfig = {
@@ -23,6 +22,11 @@ type OrgInfo = {
 
 type OrganizationsRecord = {
     organizations: Record<string, OrgInfo>
+}
+
+type SettingsFile = {
+    apiKey?: string
+    [key: string]: unknown
 }
 
 async function getOrganizations(apiKey: string): Promise<OrganizationsRecord | null> {
@@ -84,6 +88,19 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
         watcher.onDidCreate(() => syncLiveSessionFromDisk()),
         watcher.onDidDelete(() => { syncLiveSessionFromDisk() })
     )
+    async function readExistingSettings(): Promise<SettingsFile> {
+        try {
+            const existingContent = await vscode.workspace.fs.readFile(vscode.Uri.file(settingsPath))
+            const decoded = Buffer.from(new TextDecoder().decode(existingContent), 'base64').toString('utf8')
+            const parsed = JSON.parse(decoded)
+            if (parsed && typeof parsed === 'object' && parsed !== null) {
+                return parsed
+            }
+        } catch {
+            // File doesn't exist or is invalid
+        }
+        return {}
+    }
     async function syncLiveSessionFromDisk() {
         let settings_on_disk: {apiKey?: string | null} = {
             apiKey: null
@@ -139,11 +156,14 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
         if (!session || !session.accessToken || session.accessToken === SOCKET_PUBLIC_API_TOKEN) {
             return
         }
-        const contents = Buffer.from(
-            JSON.stringify({
-                apiKey: session.accessToken
-            })
-        ).toString('base64')
+
+        // Read existing settings to preserve other fields (merge approach)
+        const existingSettings = await readExistingSettings()
+
+        // Merge new apiKey into existing settings
+        existingSettings.apiKey = session.accessToken
+
+        const contents = Buffer.from(JSON.stringify(existingSettings)).toString('base64')
         return vscode.workspace.fs.writeFile(vscode.Uri.file(settingsPath), new TextEncoder().encode(contents))
     }
     //#endregion
@@ -192,7 +212,20 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
                 pleaseLoginStatusBar.show()
             } catch {}
             try {
-                fs.unlinkSync(settingsPath)
+                // Read existing settings to preserve other fields
+                const existingSettings = await readExistingSettings()
+
+                // Remove only the apiKey field, preserving other settings
+                delete existingSettings.apiKey
+
+                // If there are other settings remaining, write them back; otherwise delete the file
+                if (Object.keys(existingSettings).length > 0) {
+                    const contents = Buffer.from(JSON.stringify(existingSettings)).toString('base64')
+                    await vscode.workspace.fs.writeFile(vscode.Uri.file(settingsPath), new TextEncoder().encode(contents))
+                } else {
+                    // No other settings, safe to delete the entire file
+                    await vscode.workspace.fs.delete(vscode.Uri.file(settingsPath))
+                }
             } catch {}
             if (session) {
                 diskSessionsChanges.fire({
