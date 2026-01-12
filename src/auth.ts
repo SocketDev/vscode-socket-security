@@ -18,6 +18,7 @@ type OrgInfo = {
     name: string
     image: string | null
     plan: 'opensource' | 'team' | 'enterprise'
+    slug: string
 }
 
 type OrganizationsRecord = {
@@ -44,6 +45,16 @@ async function getOrganizations(apiKey: string): Promise<OrganizationsRecord | n
     }
     const orgs: OrganizationsRecord = JSON.parse(await text(orgRes))
     return orgs
+}
+
+const orgSlugByApiKey = new Map<string, string>()
+
+function getDefaultOrg(organizations: OrganizationsRecord): OrgInfo | null {
+    const org = Object.values(organizations.organizations)[0]
+    if (!org || !org.slug) {
+        return null
+    }
+    return org
 }
 
 export async function activate(context: vscode.ExtensionContext, disposables: Array<vscode.Disposable>) {
@@ -120,12 +131,13 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
         const sessionOnDisk: typeof liveSessions = new Map<vscode.AuthenticationSession['accessToken'], vscode.AuthenticationSession>()
         if (typeof apiKey === 'string' && apiKey.length > 0 && apiKey !== SOCKET_PUBLIC_API_TOKEN) {
             const organizations = await getOrganizations(apiKey)
-            const org = Object.values(organizations!.organizations)[0]
-            if (org) {
+            const defaultOrg = organizations ? getDefaultOrg(organizations) : null
+            if (defaultOrg) {
                 sessionOnDisk.set(
                     apiKey,
-                    sessionFromAPIKey(apiKey, org)
+                    sessionFromAPIKey(apiKey, defaultOrg)
                 )
+                orgSlugByApiKey.set(apiKey, defaultOrg.slug)
             }
         }
         let added: Array<vscode.AuthenticationSession> = []
@@ -176,23 +188,41 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
             return Array.from(liveSessions.values())
         },
         async createSession(scopes: readonly string[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
-            let organizations: OrganizationsRecord
+            let organizations: OrganizationsRecord | null = null
+            let defaultOrg: OrgInfo | null = null
             let apiKey: string = await vscode.window.showInputBox({
                 title: 'Socket Security API Token',
                 placeHolder: 'Leave this blank to stay logged out',
                 ignoreFocusOut: true,
                 prompt: 'Enter your API token from https://socket.dev/',
                 async validateInput(value) {
-                    if (!value) return
-                    organizations = (await getOrganizations(value))!
-                    if (!organizations) return 'Invalid API key'
+                    if (!value) {
+                        return
+                    }
+
+                    organizations = await getOrganizations(value)
+                    if (!organizations) {
+                        return 'Invalid API key'
+                    }
+
+                    defaultOrg = getDefaultOrg(organizations)
+                    if (!defaultOrg) {
+                        return 'No organizations found for API key'
+                    }
                 }
             }) ?? ''
             if (!apiKey) {
                 throw new Error('User did not want to provide an API key')
             }
-            const org = Object.values(organizations!.organizations)[0]
-            const session = sessionFromAPIKey(apiKey, org)
+            if (!organizations) {
+                organizations = await getOrganizations(apiKey)
+            }
+            defaultOrg = defaultOrg ?? (organizations ? getDefaultOrg(organizations) : null)
+            if (!defaultOrg) {
+                throw new Error('No organizations found for API key')
+            }
+            const session = sessionFromAPIKey(apiKey, defaultOrg)
+            orgSlugByApiKey.set(apiKey, defaultOrg.slug)
             let oldSessions = Array.from(liveSessions.values())
             await syncLiveSessionToDisk(session)
             liveSessions = new Map([
@@ -228,6 +258,7 @@ export async function activate(context: vscode.ExtensionContext, disposables: Ar
                 }
             } catch {}
             if (session) {
+                orgSlugByApiKey.delete(session.accessToken)
                 diskSessionsChanges.fire({
                     added: [],
                     changed: [],
@@ -271,6 +302,24 @@ export async function getAPIKey() {
     }
 }
 
+export async function getOrgSlug(apiKey?: string) {
+    const resolvedApiKey = apiKey ?? await getAPIKey()
+    if (!resolvedApiKey || resolvedApiKey === SOCKET_PUBLIC_API_TOKEN) {
+        return null
+    }
+    const cached = orgSlugByApiKey.get(resolvedApiKey)
+    if (cached) {
+        return cached
+    }
+    const organizations = await getOrganizations(resolvedApiKey)
+    const defaultOrg = organizations ? getDefaultOrg(organizations) : null
+    if (!defaultOrg) {
+        return null
+    }
+    orgSlugByApiKey.set(resolvedApiKey, defaultOrg.slug)
+    return defaultOrg.slug
+}
+
 export function getAuthHeader(apiKey: string) {
     return `Bearer ${apiKey}`
 }
@@ -289,4 +338,3 @@ function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
         scopes: [],
     }
 }
-

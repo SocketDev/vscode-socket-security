@@ -7,7 +7,7 @@ import logger from '../../infra/log'
 import os from 'os'
 import path from 'path'
 import fs from 'fs'
-import { getAuthHeader, getAPIKey } from '../../auth'
+import { getAuthHeader, getAPIKey, getOrgSlug } from '../../auth'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 
@@ -160,7 +160,13 @@ export class PURLDataCache {
                     bailPendingCacheEntries()
                     return
                 }
-                const req = https.request('https://api.socket.dev/v0/purl?alerts=true&compact=false', {
+                const orgSlug = await getOrgSlug(apiKey)
+                if (!orgSlug) {
+                    bailPendingCacheEntries(new Error('No organization available for API token'))
+                    return
+                }
+                const encodedOrgSlug = encodeURIComponent(orgSlug)
+                const req = https.request(`https://api.socket.dev/v0/orgs/${encodedOrgSlug}/purl?alerts=true&compact=false`, {
                     method: 'POST',
                     headers: {
                         'content-type': 'application/json',
