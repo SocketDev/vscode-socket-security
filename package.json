@@ -104,7 +104,7 @@
         "@babel/traverse": "^7.20.7",
         "@babel/types": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
-        "@socketsecurity/registry": "^1.0.66",
+        "@socketsecurity/registry": "^1.5.3",
         "@vscode/python-extension": "^1.0.5",
         "@vscode/vsce": "^3.6.0",
         "ini": "^5.0.0",
