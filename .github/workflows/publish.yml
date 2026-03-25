@@ -25,10 +25,10 @@ jobs:
           else
             echo "dryRun=false" >> $GITHUB_OUTPUT;
           fi
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       - run: npm ci
       - name: Publish to Open VSX Registry
         if: success() || failure()
