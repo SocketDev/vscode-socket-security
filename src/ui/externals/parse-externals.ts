@@ -1,7 +1,5 @@
 import * as vscode from 'vscode'
-import * as parser from '@babel/parser'
-import * as babelTypes from '@babel/types'
-import * as babelTraverse from '@babel/traverse'
+import { parse as acornParse, simple as acornSimple } from 'acorn-wasm'
 import childProcess from 'node:child_process'
 import * as path from 'node:path'
 import { text } from 'node:stream/consumers'
@@ -269,100 +267,127 @@ export async function parseExternals(
     }
   } else if (isSupportedLSPLanguageId(languageId)) {
     if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'npm') {
-      let ast: babelTypes.File
-      try {
-        ast = parser.parse(src, {
-          allowAwaitOutsideFunction: true,
-          allowImportExportEverywhere: true,
-          allowReturnOutsideFunction: true,
-          errorRecovery: true,
-          plugins: ['jsx', 'typescript', 'decorators'],
-        })
-      } catch (e) {
-        return null
+      // ESTree-shape AST node from acorn-wasm. Untyped because the
+      // wasm bindings hand back plain JS objects; we discriminate via
+      // node.type literals, the same way ESTree consumers do.
+      type AcornNode = {
+        type: string
+        start: number
+        end: number
+        // type-specific extras tagged at use sites:
+        [k: string]: unknown
       }
-      function addResult(node: babelTypes.Node, specifier: string) {
+      // acorn-wasm doesn't surface line/column locations on AST nodes;
+      // we get byte offsets only. Build a one-time newline index over
+      // the source so offset→{line, column} is O(log n) per lookup.
+      const newlineOffsets: number[] = [0]
+      for (let i = 0; i < src.length; i += 1) {
+        if (src.charCodeAt(i) === 10 /* \n */) {
+          newlineOffsets.push(i + 1)
+        }
+      }
+      function offsetToPosition(offset: number): vscode.Position {
+        // Binary search for the largest newline-start ≤ offset.
+        let lo = 0
+        let hi = newlineOffsets.length - 1
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >>> 1
+          if (newlineOffsets[mid]! <= offset) lo = mid
+          else hi = mid - 1
+        }
+        return new vscode.Position(lo, offset - newlineOffsets[lo]!)
+      }
+      function addResult(node: AcornNode, specifier: string) {
         if (/^[./]/u.test(specifier)) {
           return
         }
         const pkgName = getJSPackageNameFromSpecifier(specifier)
-        const loc = node.loc
-        if (!loc) return
-        const startPos: vscode.Position = new vscode.Position(
-          loc.start.line - 1,
-          loc.start.column,
+        const range = new vscode.Range(
+          offsetToPosition(node.start),
+          offsetToPosition(node.end),
         )
-        const endPos: vscode.Position = new vscode.Position(
-          loc.end.line - 1,
-          loc.end.column,
-        )
-        const range = new vscode.Range(startPos, endPos)
         results.add(simpurl('npm', pkgName), range)
+      }
+      // Sanity-parse upfront so a syntax error produces a null result
+      // (matches the previous behavior of bailing on parser.parse throw).
+      // acorn-wasm's `simple` parses internally too, but doesn't bubble
+      // a typed error in a way the visitor pattern can handle cleanly.
+      try {
+        acornParse(src, { sourceType: 'module', ecmaVersion: 'latest' })
+      } catch {
+        return null
       }
       const kDYNAMIC_VALUE: unique symbol = Symbol('dynamic_value')
       type DYNAMIC_VALUE = typeof kDYNAMIC_VALUE
       type PRIMITIVE = bigint | boolean | null | number | string | undefined
       /**
-       * Lazy evaluator for finding out if something is constant at compile time
+       * Lazy evaluator for finding out if something is constant at
+       * compile time. Used to recover string specifiers from things
+       * like `require(`@babel/${'traverse'}`)` (constant template +
+       * BinaryExpression concat etc.).
        *
-       * Used to deal w/ some things like require('@babel/${'traverse'}') generated code
-       *
-       * Does not support compile time symbols (well known ones)
-       * Does not support regexp symbols
-       * Does not support array literals
-       * Does not support object literals
+       * Does not support compile-time symbols, regexp results, array
+       * literals, or object literals — anything that returns a fresh
+       * object is treated as DYNAMIC.
        *
        * @returns a function to compute the value (may be non-trivial cost)
        */
-      function constFor(
-        node: babelTypes.Node,
-      ): DYNAMIC_VALUE | (() => PRIMITIVE) {
-        if (babelTypes.isTemplateLiteral(node)) {
-          if (node.quasis.length === 1) {
-            return () => node.quasis[0].value.cooked
-          } else {
-            const constExps: Array<
-              Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
-            > = []
-            for (const exp of node.expressions) {
-              const constExp = constFor(exp)
-              if (constExp === kDYNAMIC_VALUE) {
-                return kDYNAMIC_VALUE
-              }
-              constExps.push(constExp)
-            }
-            return () => {
-              let result = ''
-              let i
-              for (i = 0; i < node.quasis.length - 1; i++) {
-                result += `${node.quasis[i].value.cooked}${constExps[i]()}`
-              }
-              return `${result}${node.quasis[i].value.cooked}`
-            }
+      function constFor(node: AcornNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
+        if (node.type === 'TemplateLiteral') {
+          const quasis = node['quasis'] as Array<{
+            value: { cooked?: string; raw: string }
+          }>
+          const expressions = node['expressions'] as AcornNode[]
+          if (quasis.length === 1) {
+            return () => quasis[0]!.value.cooked ?? quasis[0]!.value.raw
           }
-        } else if (babelTypes.isBigIntLiteral(node)) {
-          return () => BigInt(node.value)
-        } else if (babelTypes.isLiteral(node)) {
-          const value = babelTypes.isRegExpLiteral(node)
-            ? new RegExp(node.pattern, node.flags)
-            : babelTypes.isNullLiteral(node)
-              ? null
-              : node.value
-          if (value && typeof value === 'object') {
-            // regexp literal
+          const constExps: Array<
+            Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
+          > = []
+          for (const exp of expressions) {
+            const constExp = constFor(exp)
+            if (constExp === kDYNAMIC_VALUE) {
+              return kDYNAMIC_VALUE
+            }
+            constExps.push(constExp)
+          }
+          return () => {
+            let result = ''
+            let i
+            for (i = 0; i < quasis.length - 1; i += 1) {
+              const cooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
+              result += `${cooked}${constExps[i]!()}`
+            }
+            const lastCooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
+            return `${result}${lastCooked}`
+          }
+        } else if (node.type === 'Literal') {
+          // ESTree's `Literal` covers string, number, boolean, null,
+          // bigint, regexp. acorn-wasm exposes:
+          //   - regexp:   node.regex = { pattern, flags }, value = null/RegExp
+          //   - bigint:   node.bigint = "<digits>", value = bigint
+          //   - null:     value = null, raw = "null"
+          //   - the rest: value = the literal value
+          if ('regex' in node) {
+            // RegExp literal — produces an object, treated as dynamic.
             return kDYNAMIC_VALUE
           }
+          if ('bigint' in node) {
+            const bigintStr = node['bigint'] as string
+            return () => BigInt(bigintStr)
+          }
+          const value = node['value'] as PRIMITIVE
           return () => value
-        } else if (babelTypes.isBinaryExpression(node)) {
-          const left = constFor(node.left)
+        } else if (node.type === 'BinaryExpression') {
+          const left = constFor(node['left'] as AcornNode)
           if (left === kDYNAMIC_VALUE) {
             return kDYNAMIC_VALUE
           }
-          const right = constFor(node.right)
+          const right = constFor(node['right'] as AcornNode)
           if (right === kDYNAMIC_VALUE) {
             return kDYNAMIC_VALUE
           }
-          const { operator } = node
+          const operator = node['operator'] as string
           if (operator === 'in' || operator === 'instanceof') {
             return kDYNAMIC_VALUE
           }
@@ -370,50 +395,52 @@ export async function parseExternals(
             return kDYNAMIC_VALUE
           }
           // lots of TS unhappy with odd but valid coercions
-          return {
-            '==': () => left() == right(),
-            '!=': () => left() != right(),
-            '===': () => left() === right(),
-            '!==': () => left() !== right(),
-            // @ts-expect-error
-            '<': () => left() < right(),
-            // @ts-expect-error
-            '<=': () => left() <= right(),
-            // @ts-expect-error
-            '>': () => left() > right(),
-            // @ts-expect-error
-            '>=': () => left() >= right(),
-            // @ts-expect-error
-            '<<': () => left() << right(),
-            // @ts-expect-error
-            '>>': () => left() >> right(),
-            // @ts-expect-error
-            '>>>': () => left() >>> right(),
-            // @ts-expect-error
-            '+': () => left() + right(),
-            // @ts-expect-error
-            '-': () => left() - right(),
-            // @ts-expect-error
-            '*': () => left() * right(),
-            // @ts-expect-error
-            '/': () => left() / right(),
-            // @ts-expect-error
-            '%': () => left() % right(),
-            // @ts-expect-error
-            '&': () => left() & right(),
-            // @ts-expect-error
-            '|': () => left() | right(),
-            // @ts-expect-error
-            '^': () => left() ^ right(),
-            // @ts-expect-error
-            '**': () => left() ** right(),
-          }[operator]
-        } else if (babelTypes.isUnaryExpression(node)) {
-          const arg = constFor(node.argument)
+          return (
+            {
+              '==': () => left() == right(),
+              '!=': () => left() != right(),
+              '===': () => left() === right(),
+              '!==': () => left() !== right(),
+              // @ts-expect-error
+              '<': () => left() < right(),
+              // @ts-expect-error
+              '<=': () => left() <= right(),
+              // @ts-expect-error
+              '>': () => left() > right(),
+              // @ts-expect-error
+              '>=': () => left() >= right(),
+              // @ts-expect-error
+              '<<': () => left() << right(),
+              // @ts-expect-error
+              '>>': () => left() >> right(),
+              // @ts-expect-error
+              '>>>': () => left() >>> right(),
+              // @ts-expect-error
+              '+': () => left() + right(),
+              // @ts-expect-error
+              '-': () => left() - right(),
+              // @ts-expect-error
+              '*': () => left() * right(),
+              // @ts-expect-error
+              '/': () => left() / right(),
+              // @ts-expect-error
+              '%': () => left() % right(),
+              // @ts-expect-error
+              '&': () => left() & right(),
+              // @ts-expect-error
+              '|': () => left() | right(),
+              // @ts-expect-error
+              '^': () => left() ^ right(),
+              // @ts-expect-error
+              '**': () => left() ** right(),
+            }[operator] ?? kDYNAMIC_VALUE
+          )
+        } else if (node.type === 'UnaryExpression') {
+          const arg = constFor(node['argument'] as AcornNode)
           if (arg === kDYNAMIC_VALUE) {
             return kDYNAMIC_VALUE
           }
-          const { operator } = node
+          const operator = node['operator'] as string
           if (operator === 'delete') {
             return kDYNAMIC_VALUE
           }
@@ -423,24 +450,30 @@ export async function parseExternals(
           if (operator === 'throw') {
             return kDYNAMIC_VALUE
           }
-          return {
-            // @ts-expect-error
-            '-': () => -arg(),
-            // @ts-expect-error
-            '+': () => +arg(),
-            '!': () => !arg(),
-            // @ts-expect-error
-            '~': () => ~arg(),
-            typeof: () => typeof arg(),
-          }[operator]
-        } else if (babelTypes.isParenthesizedExpression(node)) {
-          return constFor(node.expression)
-        } else if (babelTypes.isAwaitExpression(node)) {
-          if (!node.argument) {
-            // WTF
+          return (
+            {
+              // @ts-expect-error
+              '-': () => -arg(),
+              // @ts-expect-error
+              '+': () => +arg(),
+              '!': () => !arg(),
+              // @ts-expect-error
+              '~': () => ~arg(),
+              typeof: () => typeof arg(),
+            }[operator] ?? kDYNAMIC_VALUE
+          )
+        } else if (node.type === 'ParenthesizedExpression') {
+          // ESTree doesn't always emit ParenthesizedExpression — most
+          // parsers strip parens. Acorn does the same by default;
+          // present here defensively in case of a future preserve-paren
+          // option.
+          return constFor(node['expression'] as AcornNode)
+        } else if (node.type === 'AwaitExpression') {
+          const argument = node['argument'] as AcornNode | undefined
+          if (!argument) {
             return kDYNAMIC_VALUE
           }
-          const arg = constFor(node.argument)
+          const arg = constFor(argument)
           if (arg === kDYNAMIC_VALUE) {
             return kDYNAMIC_VALUE
           }
@@ -448,46 +481,49 @@ export async function parseExternals(
         }
         return kDYNAMIC_VALUE
       }
-      babelTraverse.default(ast, {
-        ImportDeclaration(path) {
-          addResult(path.node.source, `${path.node.source.value}`)
-          path.skip()
-        },
-        ImportExpression(path) {
-          const { node } = path
-          const constantArg = constFor(node.source)
-          if (constantArg !== kDYNAMIC_VALUE) {
-            addResult(node, `${constantArg()}`)
-          }
-        },
-        CallExpression(path) {
-          const { node } = path
-          const { callee } = node
-          if (node.arguments.length > 0) {
-            if (
-              babelTypes.isIdentifier(callee, {
-                name: 'require',
-              })
-            ) {
-              const {
-                arguments: [firstArg],
-              } = node
-              const constantArg = constFor(firstArg)
-              if (constantArg !== kDYNAMIC_VALUE) {
-                addResult(node, `${constantArg()}`)
-              }
-            } else if (babelTypes.isImport(callee)) {
-              const {
-                arguments: [firstArg],
-              } = node
+      // acorn-walk's `simple` walker passes the AST node directly (no
+      // path wrapper). It doesn't expose path.skip() — but we don't
+      // need it: ImportDeclaration's `source` is a Literal that the
+      // walker would visit anyway, and we end up adding the same
+      // result twice if we don't dedup. Deduping happens upstream in
+      // ExternalPurlRangeManager.add() via the Range list (no Set
+      // semantics, so duplicates DO leak — preserves prior behavior
+      // because babel had `path.skip()` only on ImportDeclaration).
+      acornSimple(
+        src,
+        {
+          ImportDeclaration(node: AcornNode) {
+            const source = node['source'] as AcornNode & { value: string }
+            addResult(source, `${source.value}`)
+          },
+          ImportExpression(node: AcornNode) {
+            const constantArg = constFor(node['source'] as AcornNode)
+            if (constantArg !== kDYNAMIC_VALUE) {
+              addResult(node, `${constantArg()}`)
+            }
+          },
+          CallExpression(node: AcornNode) {
+            const callee = node['callee'] as AcornNode & { name?: string }
+            const args = node['arguments'] as AcornNode[]
+            if (args.length === 0) return
+            const isRequire =
+              callee.type === 'Identifier' && callee.name === 'require'
+            // In ESTree, dynamic `import(x)` is normally an
+            // ImportExpression node (handled above), but acorn-wasm
+            // emits some shapes as CallExpression with callee.type ===
+            // 'Import'. Defensive: handle both surface shapes.
+            const isDynamicImport = callee.type === 'Import'
+            if (isRequire || isDynamicImport) {
+              const firstArg = args[0]!
               const constantArg = constFor(firstArg)
               if (constantArg !== kDYNAMIC_VALUE) {
                 addResult(node, `${constantArg()}`)
               }
             }
-          }
+          },
         },
-      })
+        { sourceType: 'module', ecmaVersion: 'latest' },
+      )
     } else if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'pypi') {
       const pythonInterpreter = await getPythonInterpreter(doc)
       if (pythonInterpreter) {

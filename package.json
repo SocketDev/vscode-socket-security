@@ -114,17 +114,14 @@
     "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs"
   },
   "dependencies": {
-    "@babel/parser": "7.29.3",
-    "@babel/traverse": "7.29.0",
-    "@babel/types": "7.29.0",
     "@socketsecurity/lib": "catalog:",
     "@vscode/python-extension": "1.0.6",
+    "acorn-wasm": "workspace:*",
     "ini": "6.0.0",
     "json-to-ast": "2.1.0",
     "toml-eslint-parser": "1.0.3"
   },
   "devDependencies": {
-    "@types/babel__traverse": "7.28.0",
     "@types/ini": "4.1.1",
     "@types/json-to-ast": "2.1.4",
     "@types/node": "catalog:",

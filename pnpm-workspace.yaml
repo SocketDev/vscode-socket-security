@@ -5,8 +5,12 @@
 # Register .claude/hooks/* as workspace packages so taze (run via
 # `pnpm run update`) sees and bumps their package.json manifests
 # alongside the root. Keeps hook deps in lockstep with the parent.
+# vendor/acorn-wasm is registered too so the bundle imports it as a
+# package by name (acorn-wasm) rather than via a brittle relative
+# `.mts` path that tsc/tsgo refuse without allowImportingTsExtensions.
 packages:
   - .claude/hooks/*
+  - vendor/acorn-wasm
 
 # Catalog entries shared across hook workspaces. Pinning them here
 # keeps the entire hook tree in lockstep with the parent without each
