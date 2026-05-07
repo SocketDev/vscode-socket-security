@@ -32,9 +32,6 @@ importers:
       '@babel/types':
         specifier: 7.29.0
         version: 7.29.0
-      '@socketsecurity/config':
-        specifier: 3.0.1
-        version: 3.0.1
       '@socketsecurity/lib':
         specifier: 'catalog:'
         version: 5.28.0(typescript@6.0.3)
@@ -60,11 +57,8 @@ importers:
       '@types/json-to-ast':
         specifier: 2.1.4
         version: 2.1.4
-      '@types/micromatch':
-        specifier: 4.0.10
-        version: 4.0.10
       '@types/node':
-        specifier: 24.9.2
+        specifier: 'catalog:'
         version: 24.9.2
       '@types/vscode':
         specifier: 1.118.0
@@ -881,10 +875,6 @@ packages:
     resolution: {integrity: sha512-yt9UfUzD02wZ7kwb67oe4jxG2D9JtgPqjrK/ans2BovFyeie0w8hvRR0MuOWM4mUt2371oFPp7NB6O5ZjYJmlw==}
     engines: {node: '>=18.20.8', pnpm: '>=11.0.0-rc.0'}
 
-  '@socketsecurity/config@3.0.1':
-    resolution: {integrity: sha512-kLKdSqi4W7SDSm5z+wYnfVRnZCVhxzbzuKcdOZSrcHoEGOT4Gl844uzoaML+f5eiQMxY+nISiETwRph/aXrIaQ==}
-    engines: {node: 18.20.7 || ^20.18.3 || >=22.14.0}
-
   '@socketsecurity/lib@5.28.0':
     resolution: {integrity: sha512-SVVq+ODU3H6KAQXwaANnnq2sNHj+JgHM67R0ww93V8J38upiSUlUR8Mxx3P5mo922B+gY6WNFU0zSJfEOjbKew==}
     engines: {node: '>=22', pnpm: '>=11.0.6'}
@@ -923,9 +913,6 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
-  '@types/braces@3.0.5':
-    resolution: {integrity: sha512-SQFof9H+LXeWNz8wDe7oN5zu7ket0qwMu5vZubW4GCJ8Kkeh6nBWUz87+KTz/G3Kqsrp0j/W253XJb3KMEeg3w==}
-
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
@@ -940,9 +927,6 @@ packages:
 
   '@types/json-to-ast@2.1.4':
     resolution: {integrity: sha512-131wOmuwDg8ypYCSQ437bGdP+K2lJ8GJUu+ng4iQQxAc3irRnb7mGHbexsPChBcKWLctTR9V5LJdX5A8WWk44A==}
-
-  '@types/micromatch@4.0.10':
-    resolution: {integrity: sha512-5jOhFDElqr4DKTrTEbnW8DZ4Hz5LRUEmyrGpCMrD/NphYv3nUnaF08xmSLx1rGGnyEs/kFnhiw6dCgcDqMr5PQ==}
 
   '@types/node@24.9.2':
     resolution: {integrity: sha512-uWN8YqxXxqFMX2RqGOrumsKeti4LlmIMIyV0lgut4jx7KQBcBiW6vkDtIBvHnHIquwNfJhk8v2OtmO8zXWHfPA==}
@@ -1973,10 +1957,6 @@ packages:
   pnpm-workspace-yaml@1.6.0:
     resolution: {integrity: sha512-uUy4dK3E11sp7nK+hnT7uAWfkBMe00KaUw8OG3NuNlYQoTk4sc9pcdIy1+XIP85v9Tvr02mK3JPaNNrP0QyRaw==}
 
-  pony-cause@2.1.11:
-    resolution: {integrity: sha512-M7LhCsdNbNgiLYiP4WjsfLUuFmCfnjdF6jKe2R9NKl4WFN+HZPGHJZ9lnLP7f9ZnKe3U9nuWD0szirmj+migUg==}
-    engines: {node: '>=12.0.0'}
-
   postcss@8.5.13:
     resolution: {integrity: sha512-qif0+jGGZoLWdHey3UFHHWP0H7Gbmsk8T5VEqyYFbWqPr1XqvLGBbk/sl8V5exGmcYJklJOhOQq1pV9IcsiFag==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2951,12 +2931,6 @@ snapshots:
 
   '@socketregistry/packageurl-js@1.4.2': {}
 
-  '@socketsecurity/config@3.0.1':
-    dependencies:
-      ajv: 8.20.0
-      pony-cause: 2.1.11
-      yaml: 2.8.3
-
   '@socketsecurity/lib@5.28.0(typescript@6.0.3)':
     optionalDependencies:
       typescript: 6.0.3
@@ -3003,8 +2977,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.0
 
-  '@types/braces@3.0.5': {}
-
   '@types/chai@5.2.3':
     dependencies:
       '@types/deep-eql': 4.0.2
@@ -3017,10 +2989,6 @@ snapshots:
   '@types/ini@4.1.1': {}
 
   '@types/json-to-ast@2.1.4': {}
-
-  '@types/micromatch@4.0.10':
-    dependencies:
-      '@types/braces': 3.0.5
 
   '@types/node@24.9.2':
     dependencies:
@@ -4090,8 +4058,6 @@ snapshots:
   pnpm-workspace-yaml@1.6.0:
     dependencies:
       yaml: 2.8.3
-
-  pony-cause@2.1.11: {}
 
   postcss@8.5.13:
     dependencies:
