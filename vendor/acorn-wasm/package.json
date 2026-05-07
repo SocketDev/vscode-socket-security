@@ -1,0 +1,10 @@
+{
+  "name": "acorn-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./acorn-wasm-sync.mts",
+  "exports": {
+    ".": "./acorn-wasm-sync.mts"
+  }
+}
