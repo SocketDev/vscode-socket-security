@@ -26,6 +26,18 @@ saveExact: true
 # attacks).
 trustPolicy: no-downgrade
 
+# Trust-policy exclusions: ancient transitive deps that predate npm
+# provenance attestation. The `no-downgrade` policy reads
+# absence-of-attestation as a regression vs a previously-attested
+# version (e.g. parse-semver had attestations on its OLDER versions
+# but not 1.1.1; semver@5 predates provenance entirely). These are
+# well-known deps locked in by @vscode/vsce's tree — drop entries
+# here when upstream republishes with provenance, or when vsce
+# migrates to newer alternatives.
+trustPolicyExclude:
+  - 'parse-semver@1.1.1'
+  - 'semver@5.7.2'
+
 # Refuse transitive git/tarball subdeps. Direct git deps are still
 # allowed; this only blocks transitive ones (a malicious sub-dep
 # can't sneak a git ref past the registry firewall).
