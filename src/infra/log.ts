@@ -1,9 +1,9 @@
-import * as vscode from 'vscode';
+import * as vscode from 'vscode'
 
 const logger = vscode.window.createOutputChannel('Socket Security', {
-    log: true
+  log: true,
 })
 
 logger.info('Socket Security extension started')
 
-export default logger;
+export default logger

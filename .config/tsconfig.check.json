@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declarationMap": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "sourceMap": false,
+    "types": ["node", "vscode"],
+    "verbatimModuleSyntax": false
+  },
+  "include": ["../src/**/*.ts", "../test/**/*.mts"],
+  "exclude": ["**/.cache/**", "**/node_modules/**/*", "**/vendor/**/*"]
+}

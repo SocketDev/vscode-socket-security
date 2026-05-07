@@ -35,9 +35,9 @@ importers:
       '@socketsecurity/config':
         specifier: 3.0.1
         version: 3.0.1
-      '@socketsecurity/registry':
-        specifier: 2.0.2
-        version: 2.0.2(typescript@6.0.3)
+      '@socketsecurity/lib':
+        specifier: 'catalog:'
+        version: 5.28.0(typescript@6.0.3)
       '@vscode/python-extension':
         specifier: 1.0.6
         version: 1.0.6
@@ -47,10 +47,10 @@ importers:
       json-to-ast:
         specifier: 2.1.0
         version: 2.1.0
+      toml-eslint-parser:
+        specifier: 1.0.3
+        version: 1.0.3
     devDependencies:
-      '@socketsecurity/lib':
-        specifier: 'catalog:'
-        version: 5.28.0(typescript@6.0.3)
       '@types/babel__traverse':
         specifier: 7.28.0
         version: 7.28.0
@@ -895,15 +895,6 @@ packages:
       typescript:
         optional: true
 
-  '@socketsecurity/registry@2.0.2':
-    resolution: {integrity: sha512-hGfteZxSnPN2gmOc9A5cJmyTZBumgMWmg2MVOMRmQjFwxVssk/Bs5dgETGGSOfWBmo/g1K5rBfPs1vE0n/SXMQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      typescript: '>=5.0.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@socketsecurity/sdk@4.0.1':
     resolution: {integrity: sha512-fe3DQp2dFwhc0G6Za36GIMSV+QaPAP5L96K3ZOtywt9nhbwxc9IQwqzdOVztdn5Rbez3t9EHU9Esj24/hWdP0g==}
     engines: {node: '>=18.20.8', pnpm: '>=11.0.0-rc.0'}
@@ -1382,6 +1373,10 @@ packages:
     resolution: {integrity: sha512-sNR9MHpXSUV/XB4zmsFKN+QgVG82Cc7+/aaxJ8Adi8hyOac+EXptIp45QBPaVyX3N70664wRbTcLTOemCAnyqw==}
     engines: {node: '>=18'}
     hasBin: true
+
+  eslint-visitor-keys@5.0.1:
+    resolution: {integrity: sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
   estree-walker@3.0.3:
     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
@@ -2222,6 +2217,10 @@ packages:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
 
+  toml-eslint-parser@1.0.3:
+    resolution: {integrity: sha512-A5F0cM6+mDleacLIEUkmfpkBbnHJFV1d2rprHU2MXNk7mlxHq2zGojA+SRvQD1RoMo9gqjZPWEaKG4v1BQ48lw==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
@@ -2962,10 +2961,6 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  '@socketsecurity/registry@2.0.2(typescript@6.0.3)':
-    optionalDependencies:
-      typescript: 6.0.3
-
   '@socketsecurity/sdk@4.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
@@ -3506,6 +3501,8 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.0
       '@esbuild/win32-ia32': 0.28.0
       '@esbuild/win32-x64': 0.28.0
+
+  eslint-visitor-keys@5.0.1: {}
 
   estree-walker@3.0.3:
     dependencies:
@@ -4407,6 +4404,10 @@ snapshots:
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
+
+  toml-eslint-parser@1.0.3:
+    dependencies:
+      eslint-visitor-keys: 5.0.1
 
   tslib@2.8.1: {}
 

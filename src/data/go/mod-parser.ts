@@ -2,137 +2,146 @@ import wasmBinary from './mod-parser.wasm'
 import GoExecutor from './wasm-executor'
 
 const executor = new GoExecutor<{
-    parseGoMod (src: string): string
+  parseGoMod(src: string): string
 }>()
-let goWASM: Promise<typeof executor['exports']> | undefined
+let goWASM: Promise<(typeof executor)['exports']> | undefined
 
 export interface GoPosition {
-    Line: number
-    LineRune: number
-    Byte: number
+  Line: number
+  LineRune: number
+  Byte: number
 }
 
 export interface GoComment {
-    Start: GoPosition
-    Token: string
-    Suffix: boolean
+  Start: GoPosition
+  Token: string
+  Suffix: boolean
 }
 
 export interface GoComments {
-    Before: Comment[] | null
-    Suffix: Comment[] | null
-    After: Comment[] | null
+  Before: Comment[] | null
+  Suffix: Comment[] | null
+  After: Comment[] | null
 }
 
 export interface GoLine extends GoComments {
-    Start: GoPosition
-    Token: string[]
-    InBlock: boolean
-    End: GoPosition
+  Start: GoPosition
+  Token: string[]
+  InBlock: boolean
+  End: GoPosition
 }
 
 export interface GoModuleVersion {
-    Path: string
-    Version?: string
+  Path: string
+  Version?: string
 }
 
 export interface GoModule {
-    Mod: GoModuleVersion
-    Deprecated: string
-    Syntax: GoLine
+  Mod: GoModuleVersion
+  Deprecated: string
+  Syntax: GoLine
 }
 
 export interface GoModInfo {
-    Version: string
-    Syntax: GoLine
+  Version: string
+  Syntax: GoLine
 }
 
 export interface GoToolchain {
-    Name: string
-    Syntax: GoLine
+  Name: string
+  Syntax: GoLine
 }
 
 export interface GoRequire {
-    Mod: GoModuleVersion
-    Indirect: boolean
-    Syntax: GoLine
+  Mod: GoModuleVersion
+  Indirect: boolean
+  Syntax: GoLine
 }
 
 export interface GoExclude {
-    Mod: GoModuleVersion
-    Syntax: GoLine
+  Mod: GoModuleVersion
+  Syntax: GoLine
 }
 
 export interface GoReplace {
-    Old: GoModuleVersion
-    New: GoModuleVersion
-    Syntax: GoLine
+  Old: GoModuleVersion
+  New: GoModuleVersion
+  Syntax: GoLine
 }
 
 export interface GoVersionInterval {
-    Low: string
-    High: string
+  Low: string
+  High: string
 }
 
 export interface GoRetract extends GoVersionInterval {
-    Rationale: string
-    Syntax: GoLine
+  Rationale: string
+  Syntax: GoLine
 }
 
 export interface GoCommentBlock extends GoComments {
-    Start: GoPosition
+  Start: GoPosition
 }
 
 export interface GoLParen extends GoComments {
-    Pos: GoPosition
+  Pos: GoPosition
 }
 
 export interface GoRParen extends GoComments {
-    Pos: GoPosition
+  Pos: GoPosition
 }
 
 export interface GoLineBlock extends GoComments {
-	Start: GoPosition
-	LParen: GoLParen
-	Token: string[]
-	Line: GoLine[]
-	RParen: GoRParen
+  Start: GoPosition
+  LParen: GoLParen
+  Token: string[]
+  Line: GoLine[]
+  RParen: GoRParen
 }
 
 export interface GoFileSyntax extends GoComments {
-    Name: string
-    Stmt: (GoCommentBlock | GoLineBlock | GoLine)[]
+  Name: string
+  Stmt: Array<GoCommentBlock | GoLineBlock | GoLine>
 }
 
 export interface GoModFile {
-    Module: GoModule | null
-    Go: GoModInfo | null
-    Toolchain: GoToolchain | null
-    Require: GoRequire[] | null
-    Exclude: GoExclude[] | null
-    Replace: GoReplace[] | null
-    Retract: GoRetract[] | null
-    Syntax: GoFileSyntax
+  Module: GoModule | null
+  Go: GoModInfo | null
+  Toolchain: GoToolchain | null
+  Require: GoRequire[] | null
+  Exclude: GoExclude[] | null
+  Replace: GoReplace[] | null
+  Retract: GoRetract[] | null
+  Syntax: GoFileSyntax
 }
 
 interface GoParseError {
-    Error: string
+  Error: string
 }
 
 const isParseError = (data: unknown): data is GoParseError =>
-    typeof (data as GoParseError).Error === 'string'
+  typeof (data as GoParseError).Error === 'string'
 
-export async function parseGoMod (src: string): Promise<GoModFile | null> {
-    if (!goWASM) {
-        goWASM = WebAssembly.instantiate(wasmBinary, {
-            go: executor.goImportObject
-        }).then(result => {
-            void executor.run(result.instance)
-            return executor.exports
-        })
-    }
-    const wasmExports = await goWASM
-    const result: GoModFile | GoParseError = JSON.parse(wasmExports.parseGoMod(src))
-    if (isParseError(result)) return null
-    return result
+export async function parseGoMod(src: string): Promise<GoModFile | null> {
+  if (!goWASM) {
+    // WebAssembly.instantiate has two overloads. TypeScript can't tell
+    // a Uint8Array from a `WebAssembly.Module` (both fit the second
+    // overload's signature when source-mapped), so the result type
+    // comes back as the wrong shape. Cast through unknown to access
+    // the `.instance` we actually receive at runtime.
+    goWASM = (
+      WebAssembly.instantiate(wasmBinary, {
+        go: executor.goImportObject,
+      }) as unknown as Promise<WebAssembly.WebAssemblyInstantiatedSource>
+    ).then(result => {
+      void executor.run(result.instance)
+      return executor.exports
+    })
+  }
+  const wasmExports = await goWASM
+  const result: GoModFile | GoParseError = JSON.parse(
+    wasmExports.parseGoMod(src),
+  )
+  if (isParseError(result)) return null
+  return result
 }

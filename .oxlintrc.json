@@ -56,6 +56,7 @@
     "**/patches",
     "**/test/fixtures",
     "**/test/packages",
+    "**/vendor",
     "**/*.d.ts",
     "**/*.d.ts.map",
     "**/*.tsbuildinfo"

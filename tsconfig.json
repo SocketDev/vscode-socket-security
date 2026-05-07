@@ -1,25 +1,23 @@
 {
-    "compilerOptions": {
-        "module": "ESNext",
-        "moduleResolution": "node",
-        "target": "esnext",
-        // DOM needed for WASM unfortunately
-        "lib": ["dom", "esnext"],
-        "outDir": "out",
-        "sourceMap": true,
-        "rootDir": "src",
-        "skipLibCheck": true,
-        "esModuleInterop": true,
-        "types": ["node", "vscode"],
-        /* Strict Type-Checking Option */
-        "strict": true,   /* enable all strict type-checking options */
-        /* Additional Checks */
-        "noUnusedLocals": true /* Report errors on unused locals. */
-    },
-    "typeAcquisition": {
-        "enable": true
-    },
-    "exclude": [
-        "node_modules"
-    ]
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "target": "esnext",
+    // DOM needed for WASM unfortunately
+    "lib": ["dom", "esnext"],
+    "outDir": "out",
+    "sourceMap": true,
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node", "vscode"],
+    /* Strict Type-Checking Option */
+    "strict": true /* enable all strict type-checking options */,
+    /* Additional Checks */
+    "noUnusedLocals": true /* Report errors on unused locals. */
+  },
+  "typeAcquisition": {
+    "enable": true
+  },
+  "exclude": ["node_modules"]
 }

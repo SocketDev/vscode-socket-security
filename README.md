@@ -4,13 +4,13 @@ This extension provides automatic reporting of security concerns from [Socket Se
 
 ## Ahead of Package Installation
 
-* Package imports in JavaScript and Python are detected and given summary scores to show concerns with configurable overlays. These overlays will persist even after package installation.
+- Package imports in JavaScript and Python are detected and given summary scores to show concerns with configurable overlays. These overlays will persist even after package installation.
 
-* Socket detects multiple alternate forms of package imports, including dynamic `import()` or `require` in JavaScript or `importlib.import_module` in Python.
+- Socket detects multiple alternate forms of package imports, including dynamic `import()` or `require` in JavaScript or `importlib.import_module` in Python.
 
 ## MCP Server
 
-* This will automatically register the socket MCP server at https://mcp.socket.dev to allow usage of the public MCP server.
+- This will automatically register the socket MCP server at https://mcp.socket.dev to allow usage of the public MCP server.
 
 # Team Guide
 
