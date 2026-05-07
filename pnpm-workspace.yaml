@@ -1,15 +1,44 @@
 # Single-package repo. pnpm-workspace.yaml is here so pnpm 11+
 # settings (catalog, soak window, pnpm options) live in the same
 # canonical location as the rest of the fleet.
+
+# Register .claude/hooks/* as workspace packages so taze (run via
+# `pnpm run update`) sees and bumps their package.json manifests
+# alongside the root. Keeps hook deps in lockstep with the parent.
+packages:
+  - .claude/hooks/*
+
+# Catalog entries shared across hook workspaces. Pinning them here
+# keeps the entire hook tree in lockstep with the parent without each
+# hook duplicating literal pins.
+catalog:
+  '@sinclair/typebox': 0.34.49
+  '@socketregistry/packageurl-js': 1.4.2
+  '@socketsecurity/lib': 5.28.0
+  '@socketsecurity/sdk': 4.0.1
+  '@types/node': 24.9.2
+
 autoInstallPeers: true
 resolutionMode: highest
 saveExact: true
+
+# Refuse downgrades during install (defense against lockfile downgrade
+# attacks).
+trustPolicy: no-downgrade
+
+# Refuse transitive git/tarball subdeps. Direct git deps are still
+# allowed; this only blocks transitive ones (a malicious sub-dep
+# can't sneak a git ref past the registry firewall).
+blockExoticSubdeps: true
+
 # Soak window: don't install packages younger than 7 days unless they
 # match the exclude list. Defends against fresh-malicious-publish
 # supply-chain attacks (a published package gets a 7-day quarantine
 # during which only existing-cached versions install).
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  - '@socketaddon/*'
+  - '@socketbin/*'
   - '@socketregistry/*'
   - '@socketsecurity/*'
   # @typescript-eslint v5 metadata is missing the `time` field upstream
@@ -17,6 +46,7 @@ minimumReleaseAgeExclude:
   # this repo still pins it; drop these exclusions when migrating to
   # @typescript-eslint v9+.
   - '@typescript-eslint/*'
+
 # Postinstall script approvals. pnpm 11 blocks postinstall by default;
 # these three packages legitimately need theirs:
 # - @vscode/vsce-sign: downloads platform-specific signing binary

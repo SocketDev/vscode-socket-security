@@ -1,0 +1,7 @@
+{
+  "$schema": "./lockstep.schema.json",
+  "area": "REPO_NAME",
+  "description": "lockstep manifest. Replace `area` with the repo's canonical name (e.g. `stuie`, `socket-btm`). Fill `upstreams` with any submodule or upstream project this repo tracks. Fill `rows` with a `file-fork`, `version-pin`, `feature-parity`, `spec-conformance`, or `lang-parity` entry per lock-step concern. See scripts/lockstep-schema.mts for the TypeBox source of truth; lockstep.schema.json is machine-generated from it. Delete this description and write one that actually reflects the repo.",
+  "upstreams": {},
+  "rows": []
+}

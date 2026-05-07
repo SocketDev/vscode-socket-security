@@ -17,7 +17,31 @@ marketplace icon, web page favicon, README banner, …).
 | `socket-icon-brand.svg` ★ | 2 | shield: pink→purple gradient, bolt: `#fff` | `0 0 181.41 240` |
 | `socket-icon-brand-square.svg` ★ | 2 | shield: pink→purple gradient, bolt: `#fff` | `-29.295 0 240 240` |
 
-### PNG variants (rasterized brand-square)
+### Wordmark variants (shield + "Socket" text, 840×240 landscape)
+
+| File | Layers | viewBox |
+|---|---|---|
+| `socket-logo-light.svg` | shield (gradient) + bolt (white) + text (slate-900) | `0 0 840 240` |
+| `socket-logo-dark.svg` | shield (gradient) + bolt (white) + text (slate-50) | `0 0 840 240` |
+
+"Light" and "dark" refer to the **page background** the wordmark sits
+on — light wordmark has dark text (for use on white/light bg); dark
+wordmark has light text (for use on dark bg). The shield itself uses
+the same brand gradient in both. Drop both into a GitHub README via
+the `<picture>` element so the right one shows per the reader's
+color-scheme preference:
+
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/socket-logo-dark-840.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/socket-logo-light-840.png">
+  <img alt="Socket" width="420" src="assets/socket-logo-light-840.png">
+</picture>
+```
+
+### PNG variants
+
+Brand-square (favicons + marketplace listing):
 
 | File | Use |
 |---|---|
@@ -27,6 +51,16 @@ marketplace icon, web page favicon, README banner, …).
 | `socket-icon-brand-128.png` | Docs, OG cards |
 | `socket-icon-brand-256.png` | VSCode marketplace listing |
 | `socket-icon-brand-512.png` | High-DPI, hero images, press kit |
+
+Wordmark (README hero banners, in light/dark pairs):
+
+| File | Width | Use |
+|---|---|---|
+| `socket-logo-{light,dark}-420.png`  | 420×120 | README hero (1× display) |
+| `socket-logo-{light,dark}-840.png`  | 840×240 | README hero (2× / Retina) |
+| `socket-logo-{light,dark}-1680.png` | 1680×480 | Press kit, hero images |
+
+## Variant semantics
 
 The single-color variants treat the bolt as a cutout (negative space)
 so the bolt always shows the background color through. Recolor via
@@ -41,6 +75,10 @@ pink-to-purple horizontal gradient (`#f419b8` → `#9d5df8`) on the
 shield, white bolt. Pixel-sampled from the original purple gradient
 PNG. Use when you need a finished "Socket logo" with no theming work
 (README banner, marketplace icon, social cards).
+
+The "logo" variants are the brand mark plus the "Socket" wordmark, in
+light/dark text variants. Use these when the visual context wants the
+brand name (CLI hero banner, web header, OG card hero).
 
 ## Generator
 
