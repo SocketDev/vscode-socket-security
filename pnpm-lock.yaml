@@ -16,6 +16,9 @@ catalogs:
       specifier: 24.9.2
       version: 24.9.2
 
+overrides:
+  semver: 7.7.4
+
 importers:
 
   .:
@@ -2064,10 +2067,6 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  semver@5.7.2:
-    resolution: {integrity: sha512-cBznnQ9KjJqU67B52RMC65CMarK2600WFnbkcaiwWq3xy/5haFJlshgnpjovMVJ+Hff49d8GEn0b87C5pDQ10g==}
-    hasBin: true
-
   semver@7.7.4:
     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
     engines: {node: '>=10'}
@@ -4053,7 +4052,7 @@ snapshots:
 
   parse-semver@1.1.1:
     dependencies:
-      semver: 5.7.2
+      semver: 7.7.4
 
   parse5-htmlparser2-tree-adapter@7.1.0:
     dependencies:
@@ -4224,8 +4223,6 @@ snapshots:
       read-pkg: 9.0.1
     transitivePeerDependencies:
       - supports-color
-
-  semver@5.7.2: {}
 
   semver@7.7.4: {}
 

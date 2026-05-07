@@ -29,14 +29,21 @@ trustPolicy: no-downgrade
 # Trust-policy exclusions: ancient transitive deps that predate npm
 # provenance attestation. The `no-downgrade` policy reads
 # absence-of-attestation as a regression vs a previously-attested
-# version (e.g. parse-semver had attestations on its OLDER versions
-# but not 1.1.1; semver@5 predates provenance entirely). These are
-# well-known deps locked in by @vscode/vsce's tree — drop entries
-# here when upstream republishes with provenance, or when vsce
-# migrates to newer alternatives.
+# version. parse-semver@1.1.1 has been the latest version since 2017
+# (the project is dead — there is no newer release to raise to via
+# `overrides`), so we accept it explicitly. Drop this entry if vsce
+# ever migrates off parse-semver.
 trustPolicyExclude:
   - 'parse-semver@1.1.1'
-  - 'semver@5.7.2'
+
+# Force-raise transitive deps that vsce's tree pins to ancient
+# unattested versions. Where a newer attested version exists with a
+# compatible API surface, override here instead of granting a trust-
+# policy exception. Semver v5 predates npm provenance entirely; v7's
+# `parse()`/`coerce()`/`gt()`/`lt()` API surface is what parse-semver
+# uses and is unchanged across major versions.
+overrides:
+  semver: 7.7.4
 
 # Refuse transitive git/tarball subdeps. Direct git deps are still
 # allowed; this only blocks transitive ones (a malicious sub-dep
