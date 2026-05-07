@@ -31,7 +31,7 @@
     "engines": {
         "vscode": "^1.63.0"
     },
-    "icon": "socket-square.png",
+    "icon": "assets/socket-icon-brand-256.png",
     "activationEvents": [
         "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
         "workspaceContains:**/[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
