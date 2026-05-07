@@ -1,0 +1,28 @@
+# Single-package repo. pnpm-workspace.yaml is here so pnpm 11+
+# settings (catalog, soak window, pnpm options) live in the same
+# canonical location as the rest of the fleet.
+autoInstallPeers: true
+resolutionMode: highest
+saveExact: true
+# Soak window: don't install packages younger than 7 days unless they
+# match the exclude list. Defends against fresh-malicious-publish
+# supply-chain attacks (a published package gets a 7-day quarantine
+# during which only existing-cached versions install).
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@socketregistry/*'
+  - '@socketsecurity/*'
+  # @typescript-eslint v5 metadata is missing the `time` field upstream
+  # which makes pnpm refuse to evaluate the soak window. v5 is EOL but
+  # this repo still pins it; drop these exclusions when migrating to
+  # @typescript-eslint v9+.
+  - '@typescript-eslint/*'
+# Postinstall script approvals. pnpm 11 blocks postinstall by default;
+# these three packages legitimately need theirs:
+# - @vscode/vsce-sign: downloads platform-specific signing binary
+# - esbuild: downloads platform-specific bundler binary
+# - keytar: native node-gyp build for OS keychain bindings
+allowBuilds:
+  '@vscode/vsce-sign': true
+  esbuild: true
+  keytar: true

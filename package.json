@@ -31,6 +31,7 @@
     "engines": {
         "vscode": "^1.63.0"
     },
+    "packageManager": "pnpm@11.0.7",
     "icon": "assets/socket-icon-brand-256.png",
     "activationEvents": [
         "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
@@ -90,21 +91,20 @@
     },
     "publisher": "SocketSecurity",
     "scripts": {
-        "vscode:prepublish": "npm run esbuild -- --minify",
+        "vscode:prepublish": "pnpm run esbuild --minify",
         "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
-        "esbuild-base": "esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --sourcemap",
-        "esbuild": "npm run esbuild-base -- --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
+        "esbuild": "pnpm exec esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --sourcemap --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
         "test-compile": "tsc -p ./",
         "lint": "eslint \"src/**/*.ts\"",
-        "compile": "npm run esbuild",
-        "package-for-vscode": "vsce package --dependencies"
+        "compile": "pnpm run esbuild",
+        "package-for-vscode": "vsce package --no-dependencies"
     },
     "dependencies": {
         "@babel/parser": "^7.20.7",
         "@babel/traverse": "^7.20.7",
         "@babel/types": "^7.20.7",
         "@socketsecurity/config": "^2.0.0",
-        "@socketsecurity/registry": "^1.0.66",
+        "@socketsecurity/registry": "1.0.66",
         "@vscode/python-extension": "^1.0.5",
         "@vscode/vsce": "^3.6.0",
         "ini": "^5.0.0",
