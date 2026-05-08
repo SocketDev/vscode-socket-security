@@ -8,21 +8,21 @@ marketplace icon, web page favicon, README banner, …).
 
 ### SVG variants
 
-| File                             | Layers               | Color                                      | viewBox             |
-| -------------------------------- | -------------------- | ------------------------------------------ | ------------------- |
-| `socket-icon.svg`                | 1 (bolt is a cutout) | `currentColor`                             | `0 0 181.41 240`    |
-| `socket-icon-square.svg`         | 1                    | `currentColor`                             | `-29.295 0 240 240` |
-| `socket-icon-shield.svg`         | 2 (shield + bolt)    | shield: `currentColor`, bolt: `#fff`       | `0 0 181.41 240`    |
-| `socket-icon-shield-square.svg`  | 2                    | shield: `currentColor`, bolt: `#fff`       | `-29.295 0 240 240` |
-| `socket-icon-brand.svg` ★        | 2                    | shield: pink→purple gradient, bolt: `#fff` | `0 0 181.41 240`    |
-| `socket-icon-brand-square.svg` ★ | 2                    | shield: pink→purple gradient, bolt: `#fff` | `-29.295 0 240 240` |
+| File | Layers | Color | viewBox |
+|---|---|---|---|
+| `socket-icon.svg` | 1 (bolt is a cutout) | `currentColor` | `0 0 181.41 240` |
+| `socket-icon-square.svg` | 1 | `currentColor` | `-29.295 0 240 240` |
+| `socket-icon-shield.svg` | 2 (shield + bolt) | shield: `currentColor`, bolt: `#fff` | `0 0 181.41 240` |
+| `socket-icon-shield-square.svg` | 2 | shield: `currentColor`, bolt: `#fff` | `-29.295 0 240 240` |
+| `socket-icon-brand.svg` ★ | 2 | shield: pink→purple gradient, bolt: `#fff` | `0 0 181.41 240` |
+| `socket-icon-brand-square.svg` ★ | 2 | shield: pink→purple gradient, bolt: `#fff` | `-29.295 0 240 240` |
 
 ### Wordmark variants (shield + "Socket" text, 840×240 landscape)
 
-| File                    | Layers                                              | viewBox       |
-| ----------------------- | --------------------------------------------------- | ------------- |
+| File | Layers | viewBox |
+|---|---|---|
 | `socket-logo-light.svg` | shield (gradient) + bolt (white) + text (slate-900) | `0 0 840 240` |
-| `socket-logo-dark.svg`  | shield (gradient) + bolt (white) + text (slate-50)  | `0 0 840 240` |
+| `socket-logo-dark.svg` | shield (gradient) + bolt (white) + text (slate-50) | `0 0 840 240` |
 
 "Light" and "dark" refer to the **page background** the wordmark sits
 on — light wordmark has dark text (for use on white/light bg); dark
@@ -33,15 +33,9 @@ color-scheme preference:
 
 ```html
 <picture>
-  <source
-    media="(prefers-color-scheme: dark)"
-    srcset="assets/socket-logo-dark-840.png"
-  />
-  <source
-    media="(prefers-color-scheme: light)"
-    srcset="assets/socket-logo-light-840.png"
-  />
-  <img alt="Socket" width="420" src="assets/socket-logo-light-840.png" />
+  <source media="(prefers-color-scheme: dark)" srcset="assets/socket-logo-dark-840.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/socket-logo-light-840.png">
+  <img alt="Socket" width="420" src="assets/socket-logo-light-840.png">
 </picture>
 ```
 
@@ -49,22 +43,22 @@ color-scheme preference:
 
 Brand-square (favicons + marketplace listing):
 
-| File                        | Use                                   |
-| --------------------------- | ------------------------------------- |
-| `socket-icon-brand-16.png`  | Favicon (small)                       |
-| `socket-icon-brand-32.png`  | Favicon (standard)                    |
-| `socket-icon-brand-64.png`  | README badges, GitHub social previews |
-| `socket-icon-brand-128.png` | Docs, OG cards                        |
-| `socket-icon-brand-256.png` | VSCode marketplace listing            |
-| `socket-icon-brand-512.png` | High-DPI, hero images, press kit      |
+| File | Use |
+|---|---|
+| `socket-icon-brand-16.png` | Favicon (small) |
+| `socket-icon-brand-32.png` | Favicon (standard) |
+| `socket-icon-brand-64.png` | README badges, GitHub social previews |
+| `socket-icon-brand-128.png` | Docs, OG cards |
+| `socket-icon-brand-256.png` | VSCode marketplace listing |
+| `socket-icon-brand-512.png` | High-DPI, hero images, press kit |
 
 Wordmark (README hero banners, in light/dark pairs):
 
-| File                                | Width    | Use                       |
-| ----------------------------------- | -------- | ------------------------- |
-| `socket-logo-{light,dark}-420.png`  | 420×120  | README hero (1× display)  |
-| `socket-logo-{light,dark}-840.png`  | 840×240  | README hero (2× / Retina) |
-| `socket-logo-{light,dark}-1680.png` | 1680×480 | Press kit, hero images    |
+| File | Width | Use |
+|---|---|---|
+| `socket-logo-{light,dark}-420.png`  | 420×120 | README hero (1× display) |
+| `socket-logo-{light,dark}-840.png`  | 840×240 | README hero (2× / Retina) |
+| `socket-logo-{light,dark}-1680.png` | 1680×480 | Press kit, hero images |
 
 ## Variant semantics
 
