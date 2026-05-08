@@ -2,7 +2,8 @@
   "$schema": "./socket-repo-template-schema.json",
   "schemaVersion": 1,
   "repoName": "vscode-socket-security",
-  "kind": "single-package",
+  "layout": "single-package",
+  "native": "none",
   "hooks": {
     "enablePrePush": true,
     "enableCommitMsg": true,
