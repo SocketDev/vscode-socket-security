@@ -118,12 +118,11 @@
     "@vscode/python-extension": "1.0.6",
     "acorn-wasm": "workspace:*",
     "ini": "6.0.0",
-    "json-to-ast": "2.1.0",
+    "json-wasm": "workspace:*",
     "toml-eslint-parser": "1.0.3"
   },
   "devDependencies": {
     "@types/ini": "4.1.1",
-    "@types/json-to-ast": "2.1.4",
     "@types/node": "catalog:",
     "@types/vscode": "1.118.0",
     "@typescript/native-preview": "7.0.0-dev.20260415.1",

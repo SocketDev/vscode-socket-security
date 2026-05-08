@@ -35,9 +35,9 @@ importers:
       ini:
         specifier: 6.0.0
         version: 6.0.0
-      json-to-ast:
-        specifier: 2.1.0
-        version: 2.1.0
+      json-wasm:
+        specifier: workspace:*
+        version: link:vendor/json-wasm
       toml-eslint-parser:
         specifier: 1.0.3
         version: 1.0.3
@@ -45,9 +45,6 @@ importers:
       '@types/ini':
         specifier: 4.1.1
         version: 4.1.1
-      '@types/json-to-ast':
-        specifier: 2.1.4
-        version: 2.1.4
       '@types/node':
         specifier: 'catalog:'
         version: 24.9.2
@@ -162,6 +159,8 @@ importers:
   .claude/hooks/token-guard: {}
 
   vendor/acorn-wasm: {}
+
+  vendor/json-wasm: {}
 
 packages:
 
@@ -896,9 +895,6 @@ packages:
   '@types/ini@4.1.1':
     resolution: {integrity: sha512-MIyNUZipBTbyUNnhvuXJTY7B6qNI78meck9Jbv3wk0OgNwRyOOVEKDutAkOs1snB/tx0FafyR6/SN4Ps0hZPeg==}
 
-  '@types/json-to-ast@2.1.4':
-    resolution: {integrity: sha512-131wOmuwDg8ypYCSQ437bGdP+K2lJ8GJUu+ng4iQQxAc3irRnb7mGHbexsPChBcKWLctTR9V5LJdX5A8WWk44A==}
-
   '@types/node@24.9.2':
     resolution: {integrity: sha512-uWN8YqxXxqFMX2RqGOrumsKeti4LlmIMIyV0lgut4jx7KQBcBiW6vkDtIBvHnHIquwNfJhk8v2OtmO8zXWHfPA==}
 
@@ -1177,10 +1173,6 @@ packages:
     resolution: {integrity: sha512-gfrHV6ZPkquExvMh9IOkKsBzNDk6sDuZ6DdBGUBkvFnTCqCxzpuq48RySgP0AnaqQkw2zynOFj9yly6T1Q2G5Q==}
     engines: {node: '>=16'}
 
-  code-error-fragment@0.0.230:
-    resolution: {integrity: sha512-cadkfKp6932H8UkhzE/gcUqhRMNf8jHzkAN7+5Myabswaghu4xABTgPHDCjW+dBAJxj/SpkTYokpzDqY4pCzQw==}
-    engines: {node: '>= 4'}
-
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -1432,9 +1424,6 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  grapheme-splitter@1.0.4:
-    resolution: {integrity: sha512-bzh50DW9kTPM00T8y4o8vQg89Di9oLJVLW/KaOGIXJWP/iqCN6WKYkbNOF04vFLJhwcpYUh9ydh/+5vpOqV4YQ==}
-
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
     engines: {node: '>=8'}
@@ -1572,10 +1561,6 @@ packages:
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
-
-  json-to-ast@2.1.0:
-    resolution: {integrity: sha512-W9Lq347r8tA1DfMvAGn9QNcgYm4Wm7Yc+k8e6vezpMnRT+NHbtlxgNBXRVjXe9YM6eTn6+p/MKOlV/aABJcSnQ==}
-    engines: {node: '>= 4'}
 
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
@@ -2917,8 +2902,6 @@ snapshots:
 
   '@types/ini@4.1.1': {}
 
-  '@types/json-to-ast@2.1.4': {}
-
   '@types/node@24.9.2':
     dependencies:
       undici-types: 7.16.0
@@ -3238,8 +3221,6 @@ snapshots:
 
   cockatiel@3.2.1: {}
 
-  code-error-fragment@0.0.230: {}
-
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -3512,8 +3493,6 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  grapheme-splitter@1.0.4: {}
-
   has-flag@4.0.0: {}
 
   has-symbols@1.1.0: {}
@@ -3634,11 +3613,6 @@ snapshots:
       argparse: 2.0.1
 
   json-schema-traverse@1.0.0: {}
-
-  json-to-ast@2.1.0:
-    dependencies:
-      code-error-fragment: 0.0.230
-      grapheme-splitter: 1.0.4
 
   json5@2.2.3: {}
 

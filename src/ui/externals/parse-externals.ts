@@ -3,7 +3,11 @@ import { parse as acornParse, simple as acornSimple } from 'acorn-wasm'
 import childProcess from 'node:child_process'
 import * as path from 'node:path'
 import { text } from 'node:stream/consumers'
-import jsonToAST from 'json-to-ast'
+import {
+  parse as parseJson,
+  type Span as JsonSpan,
+  type Value as JsonValue,
+} from 'json-wasm'
 import * as toml from 'toml-eslint-parser'
 import { getPythonInterpreter } from '../../data/python/interpreter'
 import { getGlobPatterns } from '../../data/glob-patterns'
@@ -76,44 +80,48 @@ export async function parseExternals(
   const pep508RE =
     /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i
   if (path.matchesGlob(basename, globPatterns.npm.packagejson.pattern)) {
-    const pkg = jsonToAST(src, {
-      loc: true,
-    })
-    if (pkg.type !== 'Object') {
+    let pkg: JsonValue
+    try {
+      pkg = parseJson(src).root
+    } catch {
       return null
     }
+    if (pkg.type !== 'object') {
+      return null
+    }
+    const lineTable = buildLineTable(src)
 
-    for (const pkgField of pkg.children) {
+    for (const pkgField of pkg.members) {
       if (
         pkgField.key.value === 'dependencies' ||
         pkgField.key.value === 'devDependencies' ||
         pkgField.key.value === 'peerDependencies' ||
         pkgField.key.value === 'optionalDependencies'
       ) {
-        if (pkgField.value.type === 'Object') {
-          for (const v of pkgField.value.children) {
-            const { loc } = v
-            if (loc) {
-              results.add(simpurl('npm', v.key.value), rangeForJSONAstLoc(loc))
-            }
+        if (pkgField.value.type === 'object') {
+          for (const v of pkgField.value.members) {
+            results.add(
+              simpurl('npm', v.key.value),
+              spanToRange(v.span, lineTable),
+            )
           }
         }
       }
       if (pkgField.key.value === 'bundledDependencies') {
-        if (pkgField.value.type === 'Array') {
-          for (const node of pkgField.value.children) {
-            if (node.type === 'Literal' && typeof node.value === 'string') {
-              const { loc } = node
-              if (loc) {
-                results.add(simpurl('npm', node.value), rangeForJSONAstLoc(loc))
-              }
+        if (pkgField.value.type === 'array') {
+          for (const node of pkgField.value.items) {
+            if (node.type === 'string') {
+              results.add(
+                simpurl('npm', node.value),
+                spanToRange(node.span, lineTable),
+              )
             }
           }
         }
       }
       if (pkgField.key.value === 'overrides') {
-        if (pkgField.value.type === 'Object') {
-          parsePkgOverrideExternals(pkgField.value, results)
+        if (pkgField.value.type === 'object') {
+          parsePkgOverrideExternals(pkgField.value, lineTable, results)
         }
       }
     }
@@ -660,20 +668,52 @@ export async function parseExternals(
   }
   return results.externals
 }
-function rangeForJSONAstLoc(
-  loc: Required<jsonToAST.ValueNode>['loc'],
-): vscode.Range {
+// json-wasm emits byte-range spans rather than (line, column). Build
+// a sorted line-start table once per document so converting any span
+// to a vscode.Range is O(log n) per lookup, at O(n) construction
+// cost — much cheaper than re-walking the source per node.
+function buildLineTable(src: string): number[] {
+  const lines: number[] = [0]
+  for (let i = 0, n = src.length; i < n; i++) {
+    if (src.charCodeAt(i) === 10 /* \n */) {
+      lines.push(i + 1)
+    }
+  }
+  return lines
+}
+
+function offsetToPosition(
+  offset: number,
+  lineTable: number[],
+): vscode.Position {
+  // Binary search for the largest line-start <= offset.
+  let lo = 0
+  let hi = lineTable.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1
+    if (lineTable[mid] <= offset) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return new vscode.Position(lo, offset - lineTable[lo])
+}
+
+function spanToRange(span: JsonSpan, lineTable: number[]): vscode.Range {
   return new vscode.Range(
-    new vscode.Position(loc.start.line - 1, loc.start.column - 1),
-    new vscode.Position(loc.end.line - 1, loc.end.column - 1),
+    offsetToPosition(span.start, lineTable),
+    offsetToPosition(span.end, lineTable),
   )
 }
+
 function parsePkgOverrideExternals(
-  node: jsonToAST.ObjectNode,
+  node: Extract<JsonValue, { type: 'object' }>,
+  lineTable: number[],
   results: ExternalPurlRangeManager,
   contextualName?: string,
 ): void {
-  for (const child of node.children) {
+  for (const child of node.members) {
     let pkgName: string | undefined
     if (child.key.value === '.') {
       if (contextualName) {
@@ -683,25 +723,27 @@ function parsePkgOverrideExternals(
       pkgName = getJSPackageNameFromVersionRange(child.key.value)
     }
     if (pkgName) {
-      const { loc } = child.value.type === 'Literal' ? child : child.key
-      if (loc) {
-        results.add(simpurl('npm', pkgName), rangeForJSONAstLoc(loc))
-      }
+      // Highlight the whole `key: value` pair when the value is a
+      // scalar; just the key when it's a nested object (the inner
+      // object's children get their own ranges via recursion).
+      const span: JsonSpan =
+        child.value.type === 'string' ? child.span : child.key.span
+      results.add(simpurl('npm', pkgName), spanToRange(span, lineTable))
     }
     const { value } = child
-    if (value.type === 'Object') {
-      parsePkgOverrideExternals(value, results, pkgName ?? contextualName)
-    } else if (value.type === 'Literal') {
-      if (typeof value.value === 'string') {
-        if (value.value.startsWith('$')) {
-          const { loc } = value
-          if (loc) {
-            results.add(
-              simpurl('npm', value.value.slice(1)),
-              rangeForJSONAstLoc(loc),
-            )
-          }
-        }
+    if (value.type === 'object') {
+      parsePkgOverrideExternals(
+        value,
+        lineTable,
+        results,
+        pkgName ?? contextualName,
+      )
+    } else if (value.type === 'string') {
+      if (value.value.startsWith('$')) {
+        results.add(
+          simpurl('npm', value.value.slice(1)),
+          spanToRange(value.span, lineTable),
+        )
       }
     }
   }
