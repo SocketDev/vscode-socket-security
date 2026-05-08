@@ -71,6 +71,9 @@ minimumReleaseAgeExclude:
   # this repo still pins it; drop these exclusions when migrating to
   # @typescript-eslint v9+.
   - '@typescript-eslint/*'
+  # Network-mocking lib used in fleet test suites. v15 betas pre-date
+  # npm's `time` field for the major; allow pinned beta until v15 GA.
+  - 'nock@15.0.0-beta.11'
 
 # Postinstall script approvals. pnpm 11 blocks postinstall by default;
 # these three packages legitimately need theirs:
