@@ -97,7 +97,7 @@
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "pnpm run esbuild",
     "cover": "pnpm run test -- --coverage",
-    "esbuild": "pnpm exec esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --sourcemap --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
+    "esbuild": "pnpm exec esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
     "fix": "node scripts/fix.mts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
