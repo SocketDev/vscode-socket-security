@@ -69,7 +69,7 @@ const rule = {
             : obj.type === 'MemberExpression' &&
                 obj.property.type === 'Identifier'
               ? obj.property.name
-              : null
+              : undefined
 
         if (!objName) {
           return

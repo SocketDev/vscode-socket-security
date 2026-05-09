@@ -44,10 +44,10 @@ const rule = {
   create(context) {
     function calleeMethodName(callee) {
       if (callee.type !== 'MemberExpression') {
-        return null
+        return undefined
       }
       if (callee.property.type !== 'Identifier') {
-        return null
+        return undefined
       }
       return callee.property.name
     }
