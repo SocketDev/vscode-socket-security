@@ -1,3 +1,9 @@
 {
-  "type": "module"
+  "name": "socket-oxlint-plugin",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  }
 }
