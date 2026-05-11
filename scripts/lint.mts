@@ -28,6 +28,9 @@ import type { ExecSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
+
+const logger = getDefaultLogger()
 
 const args = process.argv.slice(2)
 const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
@@ -53,11 +56,11 @@ const ESCALATION_PATTERNS = [
 
 function log(msg: string): void {
   if (!quiet) {
-    console.log(msg)
+    logger.log(msg)
   }
 }
 
-function gitFiles(command: string): string[] {
+export function gitFiles(command: string): string[] {
   try {
     const out = execSync(command, {
       encoding: 'utf8',
@@ -72,15 +75,15 @@ function gitFiles(command: string): string[] {
   }
 }
 
-function getStagedFiles(): string[] {
+export function getStagedFiles(): string[] {
   return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
 }
 
-function getModifiedFiles(): string[] {
+export function getModifiedFiles(): string[] {
   return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
 }
 
-function shouldEscalate(files: string[]): boolean {
+export function shouldEscalate(files: string[]): boolean {
   for (const f of files) {
     for (const pattern of ESCALATION_PATTERNS) {
       if (pattern.test(f)) {
@@ -91,11 +94,11 @@ function shouldEscalate(files: string[]): boolean {
   return false
 }
 
-function filterLintable(files: string[]): string[] {
+export function filterLintable(files: string[]): string[] {
   return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
 }
 
-function runAll(): number {
+export function runAll(): number {
   log('Formatting all files...')
   try {
     execSync(
@@ -117,7 +120,7 @@ function runAll(): number {
   return 0
 }
 
-function runFiles(files: string[]): number {
+export function runFiles(files: string[]): number {
   if (files.length === 0) {
     log('No lintable files; skipping.')
     return 0

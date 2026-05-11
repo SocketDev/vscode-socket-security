@@ -8,10 +8,13 @@ import {
   type Span as JsonSpan,
   type Value as JsonValue,
 } from 'json-wasm'
-import * as toml from 'toml-eslint-parser'
+import {
+  parse as parseToml,
+  traverseTomlKeys,
+  type ParsedToml,
+} from 'toml-wasm'
 import { getPythonInterpreter } from '../../data/python/interpreter'
 import { getGlobPatterns } from '../../data/glob-patterns'
-import { traverseTOMLKeys } from '../../util'
 import { parseGoMod } from '../../data/go/mod-parser'
 import { getGoExecutable } from '../../data/go/executable'
 import pythonImportFinder from '../../data/python/import-finder.py'
@@ -128,89 +131,76 @@ export async function parseExternals(
       }
     }
   } else if (path.matchesGlob(basename, globPatterns.pypi.pyproject.pattern)) {
-    let parsed: toml.AST.TOMLProgram
+    let parsed: ParsedToml
     try {
-      parsed = toml.parseTOML(src)
-    } catch (err) {
+      parsed = parseToml(src)
+    } catch {
       return undefined
     }
-    traverseTOMLKeys(parsed, (key, path) => {
-      const dep =
+    const lineTable = buildLineTable(src)
+    traverseTomlKeys(parsed, ({ path, entrySpan, value }) => {
+      const isDepsArray =
         path.length === 2 && path[0] === 'project' && path[1] === 'dependencies'
-      const optionalDep =
+      const isOptionalDepsArray =
         path.length === 3 &&
         path[0] === 'project' &&
-        path[2] === 'optional-dependencies' &&
-        typeof path[3] === 'string'
+        path[1] === 'optional-dependencies' &&
+        typeof path[2] === 'string'
       const inPoetry =
         path.length > 2 && path[0] === 'tool' && path[1] === 'poetry'
-      const oldPoetryDep =
+      const isOldPoetryDep =
         inPoetry &&
         path.length === 4 &&
         ['dependencies', 'dev-dependencies'].includes(path[2] as string)
-      const groupPoetryDep =
+      const isGroupPoetryDep =
         inPoetry &&
         path.length === 6 &&
         path[2] === 'group' &&
         path[4] === 'dependencies'
       if (
-        (oldPoetryDep || groupPoetryDep) &&
+        (isOldPoetryDep || isGroupPoetryDep) &&
         typeof path[path.length - 1] === 'string'
       ) {
-        const loc = key.parent.type === 'TOMLTable' ? key.loc : key.parent.loc
         results.add(
           simpurl('pypi', path[path.length - 1] as string),
-          new vscode.Range(
-            new vscode.Position(loc.start.line - 1, loc.start.column),
-            new vscode.Position(loc.end.line - 1, loc.end.column),
-          ),
+          spanToRange(entrySpan, lineTable),
         )
       } else if (
-        (dep || optionalDep) &&
-        key.parent.type === 'TOMLKeyValue' &&
-        key.parent.value.type === 'TOMLArray'
+        (isDepsArray || isOptionalDepsArray) &&
+        value.type === 'array'
       ) {
-        for (const depNode of key.parent.value.elements) {
-          if (depNode.type !== 'TOMLValue' || depNode.kind !== 'string')
+        for (const depNode of value.items) {
+          if (depNode.type !== 'string') {
             continue
+          }
           const match = pep508RE.exec(depNode.value)
-          if (!match) continue
+          if (!match) {
+            continue
+          }
           results.add(
             simpurl('pypi', match[1]),
-            new vscode.Range(
-              new vscode.Position(
-                depNode.loc.start.line - 1,
-                depNode.loc.start.column,
-              ),
-              new vscode.Position(
-                depNode.loc.end.line - 1,
-                depNode.loc.end.column,
-              ),
-            ),
+            spanToRange(depNode.span, lineTable),
           )
         }
       }
     })
   } else if (path.matchesGlob(basename, globPatterns.pypi.pipfile.pattern)) {
-    let parsed: toml.AST.TOMLProgram
+    let parsed: ParsedToml
     try {
-      parsed = toml.parseTOML(src)
-    } catch (err) {
+      parsed = parseToml(src)
+    } catch {
       return undefined
     }
-    traverseTOMLKeys(parsed, (key, path) => {
+    const lineTable = buildLineTable(src)
+    traverseTomlKeys(parsed, ({ path, entrySpan }) => {
       if (
         path.length === 2 &&
         ['packages', 'dev-packages'].includes(path[0] as string) &&
         typeof path[1] === 'string'
       ) {
-        const loc = key.parent.type === 'TOMLTable' ? key.loc : key.parent.loc
         results.add(
           simpurl('pypi', path[1] as string),
-          new vscode.Range(
-            new vscode.Position(loc.start.line - 1, loc.start.column),
-            new vscode.Position(loc.end.line - 1, loc.end.column),
-          ),
+          spanToRange(entrySpan, lineTable),
         )
       }
     })

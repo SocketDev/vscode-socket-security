@@ -119,7 +119,7 @@
     "acorn-wasm": "workspace:*",
     "ini": "6.0.0",
     "json-wasm": "workspace:*",
-    "toml-eslint-parser": "1.0.3"
+    "toml-wasm": "workspace:*"
   },
   "devDependencies": {
     "@types/ini": "4.1.1",

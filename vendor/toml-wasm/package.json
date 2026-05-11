@@ -1,0 +1,10 @@
+{
+  "name": "toml-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./toml-wasm-sync.mts",
+  "exports": {
+    ".": "./toml-wasm-sync.mts"
+  }
+}

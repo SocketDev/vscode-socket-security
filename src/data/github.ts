@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { parseTOML, getStaticTOMLValue } from 'toml-eslint-parser'
+import { parse as parseToml, getStaticParsed } from 'toml-wasm'
 import ini from 'ini'
 
 export function orgOrUserFromString(url: string): string | undefined {
@@ -45,8 +45,8 @@ export async function sniffForGithubOrgOrUser(
 
   // poetry in pyproject.toml
   try {
-    const pyproject = getStaticTOMLValue(
-      parseTOML(
+    const pyproject = getStaticParsed(
+      parseToml(
         Buffer.from(
           await vscode.workspace.fs.readFile(
             vscode.Uri.joinPath(workspaceRootURI, 'pyproject.toml'),
