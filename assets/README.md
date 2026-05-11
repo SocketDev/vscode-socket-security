@@ -1,6 +1,6 @@
 # Socket icon assets
 
-Canonical Socket mark, fleet-shared. Distributed by socket-repo-template
+Canonical Socket mark, fleet-shared. Distributed by socket-wheelhouse
 to any repo that needs to ship a Socket logo (CLI logo art, VSCode
 marketplace icon, web page favicon, README banner, …).
 
@@ -82,7 +82,7 @@ brand name (CLI hero banner, web header, OG card hero).
 
 ## Generator
 
-`scripts/gen-socket-icon.mts` (in socket-repo-template, **not** synced
+`scripts/gen-socket-icon.mts` (in socket-wheelhouse, **not** synced
 to adopting repos) writes all variants — SVGs and rasterized PNGs.
 Adopting repos consume the produced files via sync-scaffolding without
 needing the generator or its deps installed.
