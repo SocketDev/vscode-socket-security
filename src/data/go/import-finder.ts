@@ -10,7 +10,7 @@ let lastBinPath: string | null = null
 
 export async function generateNativeGoImportBinary(goBin: string) {
   if (cachedBin && lastBinPath === goBin) {
-    const bin = await cachedBin.catch(() => null)
+    const bin = await cachedBin.catch(() => undefined)
     if (bin) {
       const valid = await fs.lstat(bin).then(
         f => {

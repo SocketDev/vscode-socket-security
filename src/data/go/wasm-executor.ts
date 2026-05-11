@@ -1,5 +1,8 @@
 // TODO: add to @socket/utils
 import { randomBytes } from 'node:crypto'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
+
+const logger = getDefaultLogger()
 
 interface GoSyscallError extends Error {
   code: string
@@ -52,7 +55,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
   _pendingEvent: GoPendingEvent | null
 
   constructor() {
-    this._pendingEvent = null
+    this._pendingEvent = undefined
     this.exitPromise = new Promise(resolve => {
       this.onExit = resolve
     })
@@ -99,7 +102,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
           callback(enosys())
         },
         fsync(_fd: number, callback: GoCallback<void>) {
-          callback(null)
+          callback(undefined)
         },
         ftruncate(_fd: number, _length: number, callback: GoCallback) {
           callback(enosys())
@@ -205,7 +208,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     let goValues: Map<number, unknown> | undefined = new Map([
       [0, NaN],
       [1, 0],
-      [2, null],
+      [2, undefined],
       [3, true],
       [4, false],
       [5, goGlobal],
@@ -518,7 +521,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
         this.mem!.setUint8(sp + 48, 1)
       },
       debug: (value: unknown) => {
-        console.log(value)
+        logger.log(value)
       },
     }
   }

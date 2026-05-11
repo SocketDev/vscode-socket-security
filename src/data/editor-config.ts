@@ -89,7 +89,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             if (watchers.size === 0) {
               onDidChangeConfigurationDisposable?.dispose()
-              onDidChangeConfigurationDisposable = null
+              onDidChangeConfigurationDisposable = undefined
             }
           }
         },

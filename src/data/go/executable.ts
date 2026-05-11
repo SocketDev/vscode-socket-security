@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import { EXTENSION_PREFIX } from '../../util'
 
-async function getGoExtension() {
+export async function getGoExtension() {
   const go = vscode.extensions.getExtension('golang.go')
   if (go && !go.isActive) await go.activate()
   return go?.exports
@@ -57,7 +57,7 @@ export async function getGoExecutable(
   return { execPath }
 }
 
-function warnToInstallMoreReliableGo(ext: vscode.Extension<any>) {
+export function warnToInstallMoreReliableGo(ext: vscode.Extension<any>) {
   const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)
   const workspaceID =
     vscode.workspace.name ||

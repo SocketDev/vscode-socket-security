@@ -8,11 +8,12 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
 import { getAuthHeader, getAPIKey } from '../../auth'
+import { safeDeleteSync } from '@socketsecurity/lib/fs'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 
 export function clearCache() {
-  fs.rmSync(cacheDir, { recursive: true, force: true })
+  safeDeleteSync(cacheDir)
 }
 
 export type PackageScoreAndAlerts = {
@@ -44,7 +45,7 @@ export class PURLPackageData {
   watchers: Set<(pkgData: PURLPackageData) => void> = new Set()
   pkgData!: PackageScoreAndAlerts | null
   mtime: number = -Infinity
-  error: string | null = null
+  error: string | null = undefined
   setError(reason: string) {
     this.error = reason
     if (!this.pkgData) {
@@ -89,7 +90,7 @@ export class PURLPackageData {
   }
   update(data: PackageScoreAndAlerts) {
     this.pkgData = data
-    this.error = null
+    this.error = undefined
     this.writePkgDataToDisk()
     this.#notifyWatchers()
   }

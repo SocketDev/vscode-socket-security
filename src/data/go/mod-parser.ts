@@ -142,6 +142,6 @@ export async function parseGoMod(src: string): Promise<GoModFile | null> {
   const result: GoModFile | GoParseError = JSON.parse(
     wasmExports.parseGoMod(src),
   )
-  if (isParseError(result)) return null
+  if (isParseError(result)) return undefined
   return result
 }

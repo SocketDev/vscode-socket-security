@@ -2,7 +2,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { safeDeleteSync } from '@socketsecurity/lib/fs'
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 try {
-  fs.rmSync(cacheDir, { recursive: true, force: true })
+  safeDeleteSync(cacheDir)
 } catch {}

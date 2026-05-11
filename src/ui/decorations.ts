@@ -9,6 +9,7 @@ import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages'
 import { isPythonBuiltin } from '../data/python/interpreter'
 import * as Module from 'node:module'
 import { getGlobPatterns } from '../data/glob-patterns'
+import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 export async function activate(context: vscode.ExtensionContext) {
   const decoManager = new DecorationManager(context)
@@ -213,7 +214,7 @@ class DecorationManagerForPURL {
     this.documentManagersForDocumentsWithThisPURL.delete(manager)
   }
   purl: SimPURL
-  packageData: PURLPackageData | null = null
+  packageData: PURLPackageData | null = undefined
   decorationType: vscode.TextEditorDecorationType
   decorationTypes: DecorationTypes
   isBuiltin: boolean
@@ -475,7 +476,7 @@ class DecorationManagerForDocument {
     )
     logger.debug([...externals.keys()].join(', '))
     if (thisDocUpdateSignal.aborted) {
-      console.info(
+      logger.info(
         `Decoration update for ${docURI} was aborted (parsing externals took longer than next update), skipping.`,
       )
       return

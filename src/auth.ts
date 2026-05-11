@@ -28,25 +28,6 @@ type SettingsFile = {
   [key: string]: unknown
 }
 
-async function getOrganizations(
-  apiKey: string,
-): Promise<OrganizationsRecord | null> {
-  const authHeader = getAuthHeader(apiKey)
-  const orgReq = https.get('https://api.socket.dev/v0/organizations', {
-    method: 'GET',
-    headers: {
-      Authorization: authHeader,
-      'Content-Type': 'application/json',
-    },
-  })
-  const [orgRes] = (await once(orgReq, 'response')) as [IncomingMessage]
-  if (orgRes.statusCode !== 200) {
-    return null
-  }
-  const orgs: OrganizationsRecord = JSON.parse(await text(orgRes))
-  return orgs
-}
-
 export async function activate(
   context: vscode.ExtensionContext,
   disposables: vscode.Disposable[],
@@ -336,7 +317,27 @@ export async function getAPIKey() {
 export function getAuthHeader(apiKey: string) {
   return `Bearer ${apiKey}`
 }
-function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
+
+export async function getOrganizations(
+  apiKey: string,
+): Promise<OrganizationsRecord | null> {
+  const authHeader = getAuthHeader(apiKey)
+  const orgReq = https.get('https://api.socket.dev/v0/organizations', {
+    method: 'GET',
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+    },
+  })
+  const [orgRes] = (await once(orgReq, 'response')) as [IncomingMessage]
+  if (orgRes.statusCode !== 200) {
+    return undefined
+  }
+  const orgs: OrganizationsRecord = JSON.parse(await text(orgRes))
+  return orgs
+}
+
+export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
   // vscode auth does weird caching based upon ids
   // if we don't change the id various things stop working
   // like logging in and out with same account/api token

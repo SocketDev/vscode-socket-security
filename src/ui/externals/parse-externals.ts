@@ -28,7 +28,7 @@ export type ExternalRef = {
   range: vscode.Range
 }
 
-function simpurl(eco: PURL_Type, name: string): SimPURL {
+export function simpurl(eco: PURL_Type, name: string): SimPURL {
   if (eco === 'pypi') {
     name = name.replaceAll('-', '_')
   }
@@ -47,17 +47,17 @@ export class ExternalPurlRangeManager {
   }
 }
 
-function getJSPackageNameFromSpecifier(name: string): string {
+export function getJSPackageNameFromSpecifier(name: string): string {
   return (name.startsWith('@') ? name.split('/', 2) : name.split('/', 1)).join(
     '/',
   )
 }
-function getJSPackageNameFromVersionRange(name: string): string {
+export function getJSPackageNameFromVersionRange(name: string): string {
   return (name.startsWith('@') ? name.split('@', 3) : name.split('@', 2)).join(
     '@',
   )
 }
-function hydrateJSONRefs(src: string): ExternalRef[] {
+export function hydrateJSONRefs(src: string): ExternalRef[] {
   return JSON.parse(src, (key, value) => {
     if (key === 'range') {
       return new vscode.Range(
@@ -84,10 +84,10 @@ export async function parseExternals(
     try {
       pkg = parseJson(src).root
     } catch {
-      return null
+      return undefined
     }
     if (pkg.type !== 'object') {
-      return null
+      return undefined
     }
     const lineTable = buildLineTable(src)
 
@@ -130,7 +130,7 @@ export async function parseExternals(
     try {
       parsed = toml.parseTOML(src)
     } catch (err) {
-      return null
+      return undefined
     }
     traverseTOMLKeys(parsed, (key, path) => {
       const dep =
@@ -194,7 +194,7 @@ export async function parseExternals(
     try {
       parsed = toml.parseTOML(src)
     } catch (err) {
-      return null
+      return undefined
     }
     traverseTOMLKeys(parsed, (key, path) => {
       if (
@@ -232,7 +232,7 @@ export async function parseExternals(
     }
   } else if (path.matchesGlob(basename, globPatterns.golang.gomod.pattern)) {
     const parsed = await parseGoMod(src)
-    if (!parsed) return null
+    if (!parsed) return undefined
 
     const exclusions: Set<string> = new Set()
     for (const exclude of parsed.Exclude ?? []) {
@@ -323,7 +323,7 @@ export async function parseExternals(
       try {
         acornParse(src, { sourceType: 'module', ecmaVersion: 'latest' })
       } catch {
-        return null
+        return undefined
       }
       const kDYNAMIC_VALUE: unique symbol = Symbol('dynamic_value')
       type DYNAMIC_VALUE = typeof kDYNAMIC_VALUE
@@ -542,7 +542,7 @@ export async function parseExternals(
         proc.stdin.end(src)
         const output = await text(proc.stdout)
         const stderr = await text(proc.stderr)
-        if (!output) return null
+        if (!output) return undefined
         const refs = hydrateJSONRefs(output)
         for (const ref of refs) {
           results.add(simpurl('pypi', ref.name), ref.range)
@@ -594,7 +594,7 @@ export async function parseExternals(
         const proc = childProcess.spawn(importFinderBin)
         proc.stdin.end(src)
         const output = await text(proc.stdout)
-        if (!output) return null
+        if (!output) return undefined
         const refs = hydrateJSONRefs(output)
         for (const ref of refs) {
           results.add(simpurl('golang', ref.name), ref.range)
@@ -664,7 +664,7 @@ export async function parseExternals(
       }
     }
   } else {
-    return null
+    return undefined
   }
   return results.externals
 }
@@ -672,7 +672,7 @@ export async function parseExternals(
 // a sorted line-start table once per document so converting any span
 // to a vscode.Range is O(log n) per lookup, at O(n) construction
 // cost — much cheaper than re-walking the source per node.
-function buildLineTable(src: string): number[] {
+export function buildLineTable(src: string): number[] {
   const lines: number[] = [0]
   for (let i = 0, n = src.length; i < n; i++) {
     if (src.charCodeAt(i) === 10 /* \n */) {
@@ -682,7 +682,7 @@ function buildLineTable(src: string): number[] {
   return lines
 }
 
-function offsetToPosition(
+export function offsetToPosition(
   offset: number,
   lineTable: number[],
 ): vscode.Position {
@@ -700,14 +700,14 @@ function offsetToPosition(
   return new vscode.Position(lo, offset - lineTable[lo])
 }
 
-function spanToRange(span: JsonSpan, lineTable: number[]): vscode.Range {
+export function spanToRange(span: JsonSpan, lineTable: number[]): vscode.Range {
   return new vscode.Range(
     offsetToPosition(span.start, lineTable),
     offsetToPosition(span.end, lineTable),
   )
 }
 
-function parsePkgOverrideExternals(
+export function parsePkgOverrideExternals(
   node: Extract<JsonValue, { type: 'object' }>,
   lineTable: number[],
   results: ExternalPurlRangeManager,

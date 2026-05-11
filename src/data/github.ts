@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { parseTOML, getStaticTOMLValue } from 'toml-eslint-parser'
 import ini from 'ini'
 
-function orgOrUserFromString(url: string): string | undefined {
+export function orgOrUserFromString(url: string): string | undefined {
   const ghHTTP =
     /^(?:git\+)?https?:\/\/(?:www.)?github.com(?::80|:443)?\/(?<target>[^/?#]*)(?=\/|$)/u
   const ghGit =

@@ -13,38 +13,6 @@ export function addDisposablesTo(
   }
 }
 
-export function getWorkspaceFolderURI(from: vscode.Uri) {
-  return vscode.workspace.getWorkspaceFolder(from)?.uri
-}
-
-export function traverseTOMLKeys(
-  src: toml.AST.TOMLProgram,
-  cb: (key: toml.AST.TOMLKey, path: Array<string | number>) => unknown,
-) {
-  const curPath: Array<string | number> = []
-
-  toml.traverseNodes(src, {
-    enterNode(node) {
-      if (node.type === 'TOMLKeyValue') {
-        curPath.push(
-          ...node.key.keys.map(k => (k.type == 'TOMLBare' ? k.name : k.value)),
-        )
-      } else if (node.type === 'TOMLTable') {
-        curPath.push(...node.resolvedKey)
-      } else if (node.type === 'TOMLKey') {
-        cb(node, curPath)
-      }
-    },
-    leaveNode(node) {
-      if (node.type === 'TOMLKeyValue') {
-        curPath.length -= node.key.keys.length
-      } else if (node.type === 'TOMLTable') {
-        curPath.length -= node.resolvedKey.length
-      }
-    },
-  })
-}
-
 export function flattenGlob(glob: string) {
   type Item = Alternation | Concatenation | string
   class Alternation {
@@ -160,4 +128,36 @@ export function flattenGlob(glob: string) {
 
   const parts = explode(glob)
   return parts.length > 1 ? `{${parts.join(',')}}` : parts[0]
+}
+
+export function getWorkspaceFolderURI(from: vscode.Uri) {
+  return vscode.workspace.getWorkspaceFolder(from)?.uri
+}
+
+export function traverseTOMLKeys(
+  src: toml.AST.TOMLProgram,
+  cb: (key: toml.AST.TOMLKey, path: Array<string | number>) => unknown,
+) {
+  const curPath: Array<string | number> = []
+
+  toml.traverseNodes(src, {
+    enterNode(node) {
+      if (node.type === 'TOMLKeyValue') {
+        curPath.push(
+          ...node.key.keys.map(k => (k.type == 'TOMLBare' ? k.name : k.value)),
+        )
+      } else if (node.type === 'TOMLTable') {
+        curPath.push(...node.resolvedKey)
+      } else if (node.type === 'TOMLKey') {
+        cb(node, curPath)
+      }
+    },
+    leaveNode(node) {
+      if (node.type === 'TOMLKeyValue') {
+        curPath.length -= node.key.keys.length
+      } else if (node.type === 'TOMLTable') {
+        curPath.length -= node.resolvedKey.length
+      }
+    },
+  })
 }

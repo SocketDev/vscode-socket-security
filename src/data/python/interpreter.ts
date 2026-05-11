@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 import { EXTENSION_PREFIX } from '../../util'
 import { PythonExtension } from '@vscode/python-extension'
 
-async function getPythonExtension() {
+export async function getPythonExtension() {
   const msPython = vscode.extensions.getExtension('ms-python.python')
   if (msPython && !msPython.isActive) await msPython.activate()
   return msPython?.exports
@@ -298,7 +298,7 @@ export async function getPythonInterpreter(
     execPath,
   }
 }
-function warnToInstallMoreReliablePython(ext: vscode.Extension<any>) {
+export function warnToInstallMoreReliablePython(ext: vscode.Extension<any>) {
   const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)
   const workspaceID =
     vscode.workspace.name ||
