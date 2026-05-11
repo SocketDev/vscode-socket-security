@@ -42,7 +42,7 @@ const fix = args.includes('--fix')
 const quiet = args.includes('--quiet') || args.includes('--silent')
 const stdio: ExecSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
 
-const LINTABLE_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.cts', '.mts'])
+const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
 
 // Paths that, when touched, force a full-workspace lint.
 const ESCALATION_PATTERNS = [
@@ -54,10 +54,16 @@ const ESCALATION_PATTERNS = [
   /^lockstep\.schema\.json$/,
 ]
 
-function log(msg: string): void {
-  if (!quiet) {
-    logger.log(msg)
-  }
+export function filterLintable(files: string[]): string[] {
+  return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
+}
+
+export function getModifiedFiles(): string[] {
+  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
+}
+
+export function getStagedFiles(): string[] {
+  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
 }
 
 export function gitFiles(command: string): string[] {
@@ -75,27 +81,10 @@ export function gitFiles(command: string): string[] {
   }
 }
 
-export function getStagedFiles(): string[] {
-  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
-}
-
-export function getModifiedFiles(): string[] {
-  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
-}
-
-export function shouldEscalate(files: string[]): boolean {
-  for (const f of files) {
-    for (const pattern of ESCALATION_PATTERNS) {
-      if (pattern.test(f)) {
-        return true
-      }
-    }
+export function log(msg: string): void {
+  if (!quiet) {
+    logger.log(msg)
   }
-  return false
-}
-
-export function filterLintable(files: string[]): string[] {
-  return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
 }
 
 export function runAll(): number {
@@ -152,6 +141,17 @@ export function runFiles(files: string[]): number {
     return 1
   }
   return 0
+}
+
+export function shouldEscalate(files: string[]): boolean {
+  for (const f of files) {
+    for (const pattern of ESCALATION_PATTERNS) {
+      if (pattern.test(f)) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 function main(): void {

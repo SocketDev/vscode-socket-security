@@ -106,8 +106,8 @@ export async function activate(
     return {}
   }
   async function syncLiveSessionFromDisk() {
-    let settings_on_disk: { apiKey?: string | null } = {
-      apiKey: null,
+    let settings_on_disk: { apiKey?: string } = {
+      apiKey: undefined,
     }
     try {
       const fromDisk = JSON.parse(

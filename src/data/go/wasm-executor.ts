@@ -1,4 +1,3 @@
-// TODO: add to @socket/utils
 import { randomBytes } from 'node:crypto'
 import { getDefaultLogger } from '@socketsecurity/lib/logger'
 

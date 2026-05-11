@@ -12,6 +12,7 @@ export async function generateNativeGoImportBinary(goBin: string) {
   if (cachedBin && lastBinPath === goBin) {
     const bin = await cachedBin.catch(() => undefined)
     if (bin) {
+      // oxlint-disable-next-line socket/prefer-exists-sync -- need `isFile()` metadata to reject directories at the cached bin path.
       const valid = await fs.lstat(bin).then(
         f => {
           return f.isFile()

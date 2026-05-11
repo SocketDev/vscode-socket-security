@@ -11,7 +11,6 @@ let globPatternsPromise: Promise<GlobPatterns> | undefined
 const replaceCasedChars = (chars: string) =>
   chars.replace(/[a-zA-Z]/g, c => `[${c.toLowerCase()}${c.toUpperCase()}]`)
 
-// TODO: can VSCode do case insensitive match without this?
 export function caseDesensitize(pattern: string) {
   let out = ''
   const charGroup = /\[[^\]]+?\]/g

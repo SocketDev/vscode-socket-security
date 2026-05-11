@@ -4,3 +4,11 @@ out/
 *.log
 node_modules/
 *.vsix
+
+# Local transpiled output of jsPlugin/config .mts sources.
+.config/oxlint-plugin/**/*.mjs
+.config/oxlint-plugin/**/*.mjs.map
+.config/rolldown/**/*.mjs
+.config/rolldown/**/*.mjs.map
+.config/*.mjs
+.config/*.mjs.map

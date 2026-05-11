@@ -31,12 +31,6 @@ export type ExternalRef = {
   range: vscode.Range
 }
 
-export function simpurl(eco: PURL_Type, name: string): SimPURL {
-  if (eco === 'pypi') {
-    name = name.replaceAll('-', '_')
-  }
-  return `pkg:${eco}/${name}`
-}
 export type SimPURL = `pkg:${PURL_Type}/${string}`
 export class ExternalPurlRangeManager {
   externals = new Map<SimPURL, { builtin: boolean; ranges: vscode.Range[] }>()
@@ -48,6 +42,20 @@ export class ExternalPurlRangeManager {
     }
     group.ranges.push(range)
   }
+}
+
+// json-wasm emits byte-range spans rather than (line, column). Build
+// a sorted line-start table once per document so converting any span
+// to a vscode.Range is O(log n) per lookup, at O(n) construction
+// cost — much cheaper than re-walking the source per node.
+export function buildLineTable(src: string): number[] {
+  const lines: number[] = [0]
+  for (let i = 0, n = src.length; i < n; i++) {
+    if (src.charCodeAt(i) === 10 /* \n */) {
+      lines.push(i + 1)
+    }
+  }
+  return lines
 }
 
 export function getJSPackageNameFromSpecifier(name: string): string {
@@ -70,6 +78,24 @@ export function hydrateJSONRefs(src: string): ExternalRef[] {
     }
     return value
   })
+}
+
+export function offsetToPosition(
+  offset: number,
+  lineTable: number[],
+): vscode.Position {
+  // Binary search for the largest line-start <= offset.
+  let lo = 0
+  let hi = lineTable.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1
+    if (lineTable[mid] <= offset) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return new vscode.Position(lo, offset - lineTable[lo])
 }
 
 export async function parseExternals(
@@ -252,7 +278,6 @@ export async function parseExternals(
       if (exclusions.has(repl.New.Path)) continue
       results.add(
         simpurl('golang', repl.New.Path),
-        // TODO: can we get just the new part?
         new vscode.Range(
           new vscode.Position(
             repl.Syntax.Start.Line - 1,
@@ -660,45 +685,6 @@ export async function parseExternals(
   }
   return results.externals
 }
-// json-wasm emits byte-range spans rather than (line, column). Build
-// a sorted line-start table once per document so converting any span
-// to a vscode.Range is O(log n) per lookup, at O(n) construction
-// cost — much cheaper than re-walking the source per node.
-export function buildLineTable(src: string): number[] {
-  const lines: number[] = [0]
-  for (let i = 0, n = src.length; i < n; i++) {
-    if (src.charCodeAt(i) === 10 /* \n */) {
-      lines.push(i + 1)
-    }
-  }
-  return lines
-}
-
-export function offsetToPosition(
-  offset: number,
-  lineTable: number[],
-): vscode.Position {
-  // Binary search for the largest line-start <= offset.
-  let lo = 0
-  let hi = lineTable.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >>> 1
-    if (lineTable[mid] <= offset) {
-      lo = mid
-    } else {
-      hi = mid - 1
-    }
-  }
-  return new vscode.Position(lo, offset - lineTable[lo])
-}
-
-export function spanToRange(span: JsonSpan, lineTable: number[]): vscode.Range {
-  return new vscode.Range(
-    offsetToPosition(span.start, lineTable),
-    offsetToPosition(span.end, lineTable),
-  )
-}
-
 export function parsePkgOverrideExternals(
   node: Extract<JsonValue, { type: 'object' }>,
   lineTable: number[],
@@ -739,4 +725,18 @@ export function parsePkgOverrideExternals(
       }
     }
   }
+}
+
+export function simpurl(eco: PURL_Type, name: string): SimPURL {
+  if (eco === 'pypi') {
+    name = name.replaceAll('-', '_')
+  }
+  return `pkg:${eco}/${name}`
+}
+
+export function spanToRange(span: JsonSpan, lineTable: number[]): vscode.Range {
+  return new vscode.Range(
+    offsetToPosition(span.start, lineTable),
+    offsetToPosition(span.end, lineTable),
+  )
 }

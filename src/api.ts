@@ -1,5 +1,7 @@
+import { httpRequest } from '@socketsecurity/lib/http-request'
+
 export async function getQuota(apiKey: string) {
-  const res = await fetch('https://api.socket.dev/v0/settings', {
+  const res = await httpRequest('https://api.socket.dev/v0/settings', {
     method: 'POST',
     headers: {
       Authorization: toAuthHeader(apiKey),
@@ -9,7 +11,7 @@ export async function getQuota(apiKey: string) {
   if (res.ok) {
     return res.json()
   } else {
-    throw new Error(await res.text())
+    throw new Error(res.text())
   }
 }
 

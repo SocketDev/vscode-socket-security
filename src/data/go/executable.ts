@@ -1,17 +1,6 @@
 import * as vscode from 'vscode'
 import { EXTENSION_PREFIX } from '../../util'
 
-export async function getGoExtension() {
-  const go = vscode.extensions.getExtension('golang.go')
-  if (go && !go.isActive) await go.activate()
-  return go?.exports
-}
-
-export async function initGo(): Promise<vscode.Disposable> {
-  // in the future, do any needed init work with the golang.go extension instance here
-  return new vscode.Disposable(() => {})
-}
-
 const warned = new Set<string>()
 
 export async function getGoExecutable(
@@ -26,6 +15,7 @@ export async function getGoExecutable(
   const pathOverride = workspaceConfig.get<string>('goExecutable')
   if (pathOverride) {
     try {
+      // oxlint-disable-next-line socket/prefer-exists-sync -- need FileType metadata to distinguish file vs. dir, and the VSCode workspace.fs API is required for remote/virtual workspaces (existsSync only works on local paths).
       const st = await vscode.workspace.fs.stat(vscode.Uri.file(pathOverride))
       if (st.type & vscode.FileType.File) {
         usingSystemPath = false
@@ -49,12 +39,20 @@ export async function getGoExecutable(
     if (cmd) {
       usingSystemPath = false
       execPath = cmd.binPath
-    } else {
-      // TODO: make this less noisy
-      // warnToInstallMoreReliableGo(ext);
     }
   }
   return { execPath }
+}
+
+export async function getGoExtension() {
+  const go = vscode.extensions.getExtension('golang.go')
+  if (go && !go.isActive) await go.activate()
+  return go?.exports
+}
+
+export async function initGo(): Promise<vscode.Disposable> {
+  // in the future, do any needed init work with the golang.go extension instance here
+  return new vscode.Disposable(() => {})
 }
 
 export function warnToInstallMoreReliableGo(ext: vscode.Extension<any>) {

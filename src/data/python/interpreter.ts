@@ -8,7 +8,6 @@ export async function getPythonExtension() {
   return msPython?.exports
 }
 
-// TODO: defer to python interpreter to provide this list
 const builtins = new Set([
   '__future__',
   '__hello__',
@@ -239,21 +238,8 @@ const builtins = new Set([
   'zipimport',
   'zoneinfo',
 ])
-export function isPythonBuiltin(name: string) {
-  return builtins.has(name)
-}
-
-export async function initPython(): Promise<vscode.Disposable> {
-  const ext = await getPythonExtension()
-  if (ext) {
-    return ext.environments.onDidChangeActiveEnvironmentPath((e: unknown) => {
-      changeMSPython.fire()
-    })
-  }
-  return new vscode.Disposable(() => {})
-}
-
 const warned = new Set<string>()
+
 export async function getPythonInterpreter(
   doc?: vscode.TextDocument,
 ): Promise<{ execPath: string } | null> {
@@ -263,6 +249,7 @@ export async function getPythonInterpreter(
   const pathOverride = workspaceConfig.get<string>('pythonInterpreter')
   if (pathOverride) {
     try {
+      // oxlint-disable-next-line socket/prefer-exists-sync -- need FileType metadata to distinguish file vs. dir, and the VSCode workspace.fs API is required for remote/virtual workspaces (existsSync only works on local paths).
       const st = await vscode.workspace.fs.stat(vscode.Uri.file(pathOverride))
       if (st.type & vscode.FileType.File) {
         usingSystemPath = false
@@ -288,9 +275,6 @@ export async function getPythonInterpreter(
           env.executable.sysPrefix ||
           env.executable.uri?.path ||
           ''
-      } else {
-        // TODO: make this less noisy
-        // warnToInstallMoreReliablePython(ext);
       }
     }
   }
@@ -298,6 +282,21 @@ export async function getPythonInterpreter(
     execPath,
   }
 }
+
+export async function initPython(): Promise<vscode.Disposable> {
+  const ext = await getPythonExtension()
+  if (ext) {
+    return ext.environments.onDidChangeActiveEnvironmentPath((e: unknown) => {
+      changeMSPython.fire()
+    })
+  }
+  return new vscode.Disposable(() => {})
+}
+
+export function isPythonBuiltin(name: string) {
+  return builtins.has(name)
+}
+
 export function warnToInstallMoreReliablePython(ext: vscode.Extension<any>) {
   const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)
   const workspaceID =

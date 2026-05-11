@@ -120,7 +120,6 @@ class DecorationManager {
       manager.update(editor.document)
     }
     this.docChangeWatchers = vscode.workspace.onDidChangeTextDocument(doc => {
-      // TODO: track if change could affect externals and only decorate then
       let hasMeaningfulChange = false
       if (!hasMeaningfulChange) {
         for (const docChange of doc.contentChanges) {
@@ -311,8 +310,7 @@ class DecorationManagerForPURL {
       const ret: string[] = []
       const color = (hex: string, text: string) =>
         `<span style="color:${hex};">${text}</span>`
-      // TODO: better grouping since there can be *MANY* alerts of the same type
-      // this is a bit lossy, but better than noise
+      // grouping is intentionally lossy — fewer dedup buckets keeps the hover readable when many alerts share a type.
       const typesListed = new Set<string>()
       for (const alert of actionGroupedAlertSet) {
         // vscode markdown wants some kind of text for the table layout
