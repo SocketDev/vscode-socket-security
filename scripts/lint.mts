@@ -12,9 +12,10 @@
  *
  * If the chosen scope has no lintable files, the script is a no-op.
  *
- * Config or infrastructure changes (.oxlintrc.json, .oxfmtrc.json,
- * tsconfig*.json, pnpm-lock.yaml, .config/**, scripts/**, package.json)
- * escalate to `--all` automatically, since they can affect everything.
+ * Config or infrastructure changes (.config/oxlintrc.json,
+ * .config/oxfmtrc.json, tsconfig*.json, pnpm-lock.yaml, .config/**,
+ * scripts/**, package.json) escalate to `--all` automatically, since they
+ * can affect everything.
  *
  * This is the minimal zero-dependency reference implementation. Larger repos
  * (socket-lib, socket-registry, socket-sdk-js, etc.) use a richer version
@@ -27,9 +28,6 @@ import type { ExecSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
-
-const logger = getDefaultLogger()
 
 const args = process.argv.slice(2)
 const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
@@ -41,7 +39,7 @@ const fix = args.includes('--fix')
 const quiet = args.includes('--quiet') || args.includes('--silent')
 const stdio: ExecSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
 
-const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
+const LINTABLE_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.cts', '.mts'])
 
 // Paths that, when touched, force a full-workspace lint.
 const ESCALATION_PATTERNS = [
@@ -49,25 +47,17 @@ const ESCALATION_PATTERNS = [
   /^scripts\//,
   /^pnpm-lock\.yaml$/,
   /^tsconfig.*\.json$/,
-  /^\.oxlintrc\.json$/,
-  /^\.oxfmtrc\.json$/,
   /^package\.json$/,
   /^lockstep\.schema\.json$/,
 ]
 
-export function filterLintable(files: string[]): string[] {
-  return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
+function log(msg: string): void {
+  if (!quiet) {
+    console.log(msg)
+  }
 }
 
-export function getModifiedFiles(): string[] {
-  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
-}
-
-export function getStagedFiles(): string[] {
-  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
-}
-
-export function gitFiles(command: string): string[] {
+function gitFiles(command: string): string[] {
   try {
     const out = execSync(command, {
       encoding: 'utf8',
@@ -82,31 +72,52 @@ export function gitFiles(command: string): string[] {
   }
 }
 
-export function log(msg: string): void {
-  if (!quiet) {
-    logger.log(msg)
-  }
+function getStagedFiles(): string[] {
+  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
 }
 
-export function runAll(): number {
+function getModifiedFiles(): string[] {
+  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
+}
+
+function shouldEscalate(files: string[]): boolean {
+  for (const f of files) {
+    for (const pattern of ESCALATION_PATTERNS) {
+      if (pattern.test(f)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+function filterLintable(files: string[]): string[] {
+  return files.filter(f => LINTABLE_EXTS.has(path.extname(f)) && existsSync(f))
+}
+
+function runAll(): number {
   log('Formatting all files...')
   try {
-    execSync(`pnpm exec oxfmt ${fix ? '--write' : '--check'} .`, { stdio })
+    execSync(
+      `pnpm exec oxfmt -c .config/oxfmtrc.json ${fix ? '--write' : '--check'} .`,
+      { stdio },
+    )
   } catch {
     return 1
   }
   log('Running oxlint on all files...')
   try {
-    execSync(`pnpm exec oxlint -c .oxlintrc.json${fix ? ' --fix' : ''}`, {
-      stdio,
-    })
+    execSync(
+      `pnpm exec oxlint -c .config/oxlintrc.json${fix ? ' --fix' : ''}`,
+      { stdio },
+    )
   } catch {
     return 1
   }
   return 0
 }
 
-export function runFiles(files: string[]): number {
+function runFiles(files: string[]): number {
   if (files.length === 0) {
     log('No lintable files; skipping.')
     return 0
@@ -115,6 +126,8 @@ export function runFiles(files: string[]): number {
   const oxfmtArgs = [
     'exec',
     'oxfmt',
+    '-c',
+    '.config/oxfmtrc.json',
     fix ? '--write' : '--check',
     '--no-error-on-unmatched-pattern',
     ...files,
@@ -125,7 +138,7 @@ export function runFiles(files: string[]): number {
     return 1
   }
   log(`Running oxlint on ${files.length} file(s)...`)
-  const oxlintArgs = ['exec', 'oxlint']
+  const oxlintArgs = ['exec', 'oxlint', '-c', '.config/oxlintrc.json']
   if (fix) {
     oxlintArgs.push('--fix')
   }
@@ -136,17 +149,6 @@ export function runFiles(files: string[]): number {
     return 1
   }
   return 0
-}
-
-export function shouldEscalate(files: string[]): boolean {
-  for (const f of files) {
-    for (const pattern of ESCALATION_PATTERNS) {
-      if (pattern.test(f)) {
-        return true
-      }
-    }
-  }
-  return false
 }
 
 function main(): void {
