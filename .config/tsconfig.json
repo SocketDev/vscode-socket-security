@@ -5,9 +5,9 @@
     "target": "esnext",
     // DOM needed for WASM unfortunately
     "lib": ["dom", "esnext"],
-    "outDir": "out",
+    "outDir": "../out",
     "sourceMap": true,
-    "rootDir": "src",
+    "rootDir": "../src",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "types": ["node", "vscode"],
@@ -19,5 +19,5 @@
   "typeAcquisition": {
     "enable": true
   },
-  "exclude": ["node_modules"]
+  "exclude": ["../node_modules"]
 }

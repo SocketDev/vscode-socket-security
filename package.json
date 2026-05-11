@@ -108,7 +108,7 @@
     "prepare": "husky",
     "security": "node scripts/security.mts",
     "test": "node scripts/test.mts",
-    "test-compile": "tsc -p ./",
+    "test-compile": "tsc -p .config/tsconfig.json",
     "update": "node scripts/update.mts",
     "vscode:prepublish": "pnpm run esbuild --minify",
     "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs"
