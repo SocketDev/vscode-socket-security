@@ -320,7 +320,7 @@ export function getAuthHeader(apiKey: string) {
 
 export async function getOrganizations(
   apiKey: string,
-): Promise<OrganizationsRecord | null> {
+): Promise<OrganizationsRecord | undefined> {
   const authHeader = getAuthHeader(apiKey)
   const orgReq = https.get('https://api.socket.dev/v0/organizations', {
     method: 'GET',

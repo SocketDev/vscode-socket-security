@@ -122,7 +122,7 @@ interface GoParseError {
 const isParseError = (data: unknown): data is GoParseError =>
   typeof (data as GoParseError).Error === 'string'
 
-export async function parseGoMod(src: string): Promise<GoModFile | null> {
+export async function parseGoMod(src: string): Promise<GoModFile | undefined> {
   if (!goWASM) {
     // WebAssembly.instantiate has two overloads. TypeScript can't tell
     // a Uint8Array from a `WebAssembly.Module` (both fit the second

@@ -52,7 +52,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
   private exitCode: number | undefined
   private instance: GoInstance | undefined
   private mem: DataView | undefined
-  _pendingEvent: GoPendingEvent | null
+  _pendingEvent: GoPendingEvent | undefined
 
   constructor() {
     this._pendingEvent = undefined
@@ -102,7 +102,8 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
           callback(enosys())
         },
         fsync(_fd: number, callback: GoCallback<void>) {
-          callback(undefined)
+          // oxlint-disable-next-line socket/prefer-undefined-over-null -- GoCallback uses Node-style `(err, result)` signature; null signals "no error".
+          callback(null, undefined)
         },
         ftruncate(_fd: number, _length: number, callback: GoCallback) {
           callback(enosys())

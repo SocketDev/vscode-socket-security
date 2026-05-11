@@ -214,7 +214,7 @@ class DecorationManagerForPURL {
     this.documentManagersForDocumentsWithThisPURL.delete(manager)
   }
   purl: SimPURL
-  packageData: PURLPackageData | null = undefined
+  packageData: PURLPackageData | undefined = undefined
   decorationType: vscode.TextEditorDecorationType
   decorationTypes: DecorationTypes
   isBuiltin: boolean

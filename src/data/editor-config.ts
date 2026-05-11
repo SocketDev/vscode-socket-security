@@ -44,7 +44,8 @@ export function activate(context: vscode.ExtensionContext) {
       })
     context.subscriptions.push(onDidChangeConfigurationDisposable)
   }
-  let onDidChangeConfigurationDisposable: vscode.Disposable | null = null
+  let onDidChangeConfigurationDisposable: vscode.Disposable | undefined =
+    undefined
   function getValuesForListener(listener: Listener) {
     return getConfigValues(listener.sections)
   }

@@ -43,9 +43,9 @@ export type PackageScoreAndAlerts = {
 export class PURLPackageData {
   purl: SimPURL
   watchers: Set<(pkgData: PURLPackageData) => void> = new Set()
-  pkgData!: PackageScoreAndAlerts | null
+  pkgData: PackageScoreAndAlerts | undefined = undefined
   mtime: number = -Infinity
-  error: string | null = undefined
+  error: string | undefined = undefined
   setError(reason: string) {
     this.error = reason
     if (!this.pkgData) {

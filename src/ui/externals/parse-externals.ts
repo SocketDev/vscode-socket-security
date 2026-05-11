@@ -71,7 +71,9 @@ export function hydrateJSONRefs(src: string): ExternalRef[] {
 
 export async function parseExternals(
   doc: vscode.TextDocument,
-): Promise<Map<SimPURL, { builtin: boolean; ranges: vscode.Range[] }> | null> {
+): Promise<
+  Map<SimPURL, { builtin: boolean; ranges: vscode.Range[] }> | undefined
+> {
   const languageId = doc.languageId
   const src = doc.getText()
   const results = new ExternalPurlRangeManager()
