@@ -27,7 +27,7 @@ const forwardedArgs = args.filter(
 try {
   const lintArgs = forwardedArgs.length ? ' ' + forwardedArgs.join(' ') : ''
   execSync(`node scripts/lint.mts${lintArgs}`, { stdio: 'inherit' })
-  execSync('pnpm exec tsgo --noEmit -p .config/tsconfig.check.json', {
+  execSync('pnpm exec tsgo --noEmit -p tsconfig.check.json', {
     stdio: 'inherit',
   })
   // Path-hygiene check (1 path, 1 reference). Mantra-driven gate;

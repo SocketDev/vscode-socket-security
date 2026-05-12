@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "./.config/tsconfig.base.json",
   "compilerOptions": {
     // DOM is needed for the WebAssembly globals used by the bundled
     // WASM glue (Go runtime, acorn-wasm).
@@ -10,8 +10,8 @@
     // noEmit on.
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "../out",
-    "rootDir": "../src",
+    "outDir": "./out",
+    "rootDir": "./src",
     "types": ["node", "vscode"],
     // Extension ships its own type declarations.
     "declaration": true,
@@ -31,6 +31,6 @@
   "typeAcquisition": {
     "enable": true
   },
-  "include": ["../src/**/*.ts"],
-  "exclude": ["../node_modules"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
 }
