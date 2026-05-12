@@ -6,4 +6,4 @@ const logger = vscode.window.createOutputChannel('Socket Security', {
 
 logger.info('Socket Security extension started')
 
-export default logger
+export { logger }

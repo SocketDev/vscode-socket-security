@@ -24,7 +24,9 @@ export function flattenGlob(glob: string) {
     }
     explode(): string[] {
       const options: string[] = []
-      for (const alternate of this.alternates) {
+      const alternates = this.alternates
+      for (let i = 0, { length } = alternates; i < length; i += 1) {
+        const alternate = alternates[i]
         if (typeof alternate === 'string') {
           options.push(alternate)
         } else if (alternate instanceof Concatenation) {
@@ -47,7 +49,9 @@ export function flattenGlob(glob: string) {
     }
     explode(): string[] {
       let prefixed = ['']
-      for (const segment of this.segments) {
+      const segments = this.segments
+      for (let i = 0, { length } = segments; i < length; i += 1) {
+        const segment = segments[i]
         let suffixes: string[]
         if (typeof segment === 'string') {
           suffixes = [segment]

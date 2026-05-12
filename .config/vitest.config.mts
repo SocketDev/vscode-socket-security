@@ -9,6 +9,7 @@ const isCoverageEnabled =
   process.env.COVERAGE === 'true' ||
   process.argv.some(arg => arg.includes('coverage'))
 
+// oxlint-disable-next-line socket/no-default-export -- vitest config requires a default export.
 export default defineConfig({
   test: {
     deps: {

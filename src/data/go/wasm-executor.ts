@@ -1,4 +1,5 @@
-import { randomBytes } from 'node:crypto'
+// max-file-lines: legitimate state-machine — Go wasm syscall ABI shim implementing the full Go.run runtime contract (memory, fs, time, exit, crypto, structured-clone); the syscall handler table and supporting helpers are tightly coupled and split poorly.
+import crypto from 'node:crypto'
 import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 const logger = getDefaultLogger()
@@ -7,7 +8,7 @@ interface GoSyscallError extends Error {
   code: string
 }
 
-const enosys = () => {
+export function enosys(): GoSyscallError {
   const err = new Error('not implemented') as GoSyscallError
   err.code = 'ENOSYS'
   if ('captureStackTrace' in Error) {
@@ -40,7 +41,9 @@ interface GoPendingEvent {
 const textEnc = new TextEncoder()
 const textDec = new TextDecoder()
 
-class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
+export class GoExecutor<
+  T extends Record<string, unknown> = Record<string, unknown>,
+> {
   readonly goImportObject: WebAssembly.ModuleImports
   readonly argv: string[]
   readonly env: Map<string, string>
@@ -216,6 +219,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     ])
     let goKeys: Map<unknown, number> | undefined = new Map()
     const goRefCount: Record<number, number> | undefined = {}
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
     for (const [key, value] of goValues) {
       goKeys.set(value, key)
       goRefCount[key] = 2 ** 32
@@ -362,7 +366,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       'runtime.getRandomData': (sp: number) => {
         sp >>>= 0
         const slice = loadSlice(sp + 8)
-        slice.set(randomBytes(slice.byteLength))
+        slice.set(crypto.randomBytes(slice.byteLength))
       },
       'syscall/js.finalizeRef': (sp: number) => {
         sp >>>= 0
@@ -558,11 +562,12 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     ]
 
     const argv = offset
-    argvPtrs.forEach(ptr => {
+    for (let i = 0, { length } = argvPtrs; i < length; i += 1) {
+      const ptr = argvPtrs[i]
       this.mem!.setUint32(offset, ptr, true)
       this.mem!.setUint32(offset + 4, 0, true)
       offset += 8
-    })
+    }
 
     const wasmMinDataAddr = 4096 + 8192
     if (offset >= wasmMinDataAddr) {
@@ -603,5 +608,3 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     }
   }
 }
-
-export default GoExecutor

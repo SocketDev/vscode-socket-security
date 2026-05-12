@@ -1,29 +1,24 @@
+// max-file-lines: legitimate parser — ecosystem dispatcher with per-PURL-type parsing logic tightly coupled to shared helpers; splitting would scatter the per-language code without reducing complexity.
 import * as vscode from 'vscode'
 import { parse as acornParse, simple as acornSimple } from 'acorn-wasm'
 import childProcess from 'node:child_process'
 import * as path from 'node:path'
 import { text } from 'node:stream/consumers'
-import {
-  parse as parseJson,
-  type Span as JsonSpan,
-  type Value as JsonValue,
-} from 'json-wasm'
-import {
-  parse as parseToml,
-  traverseTomlKeys,
-  type ParsedToml,
-} from 'toml-wasm'
+import { parse as parseJson } from 'json-wasm'
+import type { Span as JsonSpan, Value as JsonValue } from 'json-wasm'
+import { parse as parseToml, traverseTomlKeys } from 'toml-wasm'
+import type { ParsedToml } from 'toml-wasm'
 import { getPythonInterpreter } from '../../data/python/interpreter'
 import { getGlobPatterns } from '../../data/glob-patterns'
 import { parseGoMod } from '../../data/go/mod-parser'
 import { getGoExecutable } from '../../data/go/executable'
 import pythonImportFinder from '../../data/python/import-finder.py'
 import { generateNativeGoImportBinary } from '../../data/go/import-finder'
-import logger from '../../infra/log'
+import { logger } from '../../infra/log'
 import {
-  isSupportedLSPLanguageId,
   PURL_Type,
   SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER,
+  isSupportedLSPLanguageId,
 } from '../languages'
 
 export type ExternalRef = {
@@ -109,7 +104,7 @@ export async function parseExternals(
   const basename = path.basename(doc.fileName)
   const globPatterns = await getGlobPatterns()
   const pep508RE =
-    /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i
+    /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i // socket-hook: allow regex-alternation-order
   if (path.matchesGlob(basename, globPatterns.npm.packagejson.pattern)) {
     let pkg: JsonValue
     try {
@@ -122,15 +117,23 @@ export async function parseExternals(
     }
     const lineTable = buildLineTable(src)
 
-    for (const pkgField of pkg.members) {
+    const pkgMembers = pkg.members
+    for (let i = 0, { length } = pkgMembers; i < length; i += 1) {
+      const pkgField = pkgMembers[i]
       if (
         pkgField.key.value === 'dependencies' ||
         pkgField.key.value === 'devDependencies' ||
-        pkgField.key.value === 'peerDependencies' ||
-        pkgField.key.value === 'optionalDependencies'
+        pkgField.key.value === 'optionalDependencies' ||
+        pkgField.key.value === 'peerDependencies'
       ) {
         if (pkgField.value.type === 'object') {
-          for (const v of pkgField.value.members) {
+          const depMembers = pkgField.value.members
+          for (
+            let j = 0, { length: depLength } = depMembers;
+            j < depLength;
+            j += 1
+          ) {
+            const v = depMembers[j]
             results.add(
               simpurl('npm', v.key.value),
               spanToRange(v.span, lineTable),
@@ -140,7 +143,13 @@ export async function parseExternals(
       }
       if (pkgField.key.value === 'bundledDependencies') {
         if (pkgField.value.type === 'array') {
-          for (const node of pkgField.value.items) {
+          const items = pkgField.value.items
+          for (
+            let j = 0, { length: itemsLength } = items;
+            j < itemsLength;
+            j += 1
+          ) {
+            const node = items[j]
             if (node.type === 'string') {
               results.add(
                 simpurl('npm', node.value),
@@ -195,7 +204,9 @@ export async function parseExternals(
         (isDepsArray || isOptionalDepsArray) &&
         value.type === 'array'
       ) {
-        for (const depNode of value.items) {
+        const items = value.items
+        for (let i = 0, { length } = items; i < length; i += 1) {
+          const depNode = items[i]
           if (depNode.type !== 'string') {
             continue
           }
@@ -253,11 +264,15 @@ export async function parseExternals(
     if (!parsed) return undefined
 
     const exclusions: Set<string> = new Set()
-    for (const exclude of parsed.Exclude ?? []) {
+    const excludes = parsed.Exclude ?? []
+    for (let i = 0, { length } = excludes; i < length; i += 1) {
+      const exclude = excludes[i]
       exclusions.add(exclude.Mod.Path)
     }
 
-    for (const req of parsed.Require ?? []) {
+    const requires = parsed.Require ?? []
+    for (let i = 0, { length } = requires; i < length; i += 1) {
+      const req = requires[i]
       if (exclusions.has(req.Mod.Path)) continue
       results.add(
         simpurl('golang', req.Mod.Path),
@@ -274,7 +289,9 @@ export async function parseExternals(
       )
     }
 
-    for (const repl of parsed.Replace ?? []) {
+    const replaces = parsed.Replace ?? []
+    for (let i = 0, { length } = replaces; i < length; i += 1) {
+      const repl = replaces[i]
       if (exclusions.has(repl.New.Path)) continue
       results.add(
         simpurl('golang', repl.New.Path),
@@ -333,7 +350,7 @@ export async function parseExternals(
         )
         results.add(simpurl('npm', pkgName), range)
       }
-      // Sanity-parse upfront so a syntax error produces a null result
+      // Quick-parse upfront so a syntax error produces a null result
       // (matches the previous behavior of bailing on parser.parse throw).
       // acorn-wasm's `simple` parses internally too, but doesn't bubble
       // a typed error in a way the visitor pattern can handle cleanly.
@@ -369,7 +386,8 @@ export async function parseExternals(
           const constExps: Array<
             Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
           > = []
-          for (const exp of expressions) {
+          for (let i = 0, { length } = expressions; i < length; i += 1) {
+            const exp = expressions[i]
             const constExp = constFor(exp)
             if (constExp === kDYNAMIC_VALUE) {
               return kDYNAMIC_VALUE
@@ -552,6 +570,7 @@ export async function parseExternals(
     } else if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'pypi') {
       const pythonInterpreter = await getPythonInterpreter(doc)
       if (pythonInterpreter) {
+        // oxlint-disable-next-line socket/prefer-async-spawn -- need direct access to proc.stdin/stdout streams for piping source via stdin to the Python interpreter; @socketsecurity/lib/spawn buffers output.
         const proc = childProcess.spawn(pythonInterpreter.execPath, [
           '-c',
           pythonImportFinder,
@@ -561,15 +580,16 @@ export async function parseExternals(
         const stderr = await text(proc.stderr)
         if (!output) return undefined
         const refs = hydrateJSONRefs(output)
-        for (const ref of refs) {
+        for (let i = 0, { length } = refs; i < length; i += 1) {
+          const ref = refs[i]
           results.add(simpurl('pypi', ref.name), ref.range)
         }
       } else {
         // fallback for web/whenever Python interpreter not available
         const pyImportRE =
-          /(?<=(?:^|\n)\s*)(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)(?=\s*(?:$|\n))/g
+          /(?<=(?:^|\n)\s*)(?:import\s+(.+?)|from\s+(.+?)\s+import.+?)(?=\s*(?:$|\n))/g // socket-hook: allow regex-alternation-order
         const pyDynamicImportRE =
-          /(?:__import__|import_module)\((?:"""(.+?)"""|'''(.+?)'''|"(.+?)"|'(.+?)'|)\)/g
+          /(?:__import__|import_module)\((?:"""(.+?)"""|'''(.+?)'''|"(.+?)"|'(.+?)'|)\)/g // socket-hook: allow regex-alternation-order
         let charInd = 0
         const lineChars = src
           .split('\n')
@@ -586,7 +606,8 @@ export async function parseExternals(
           const endLine = nl,
             endCol = match.index - (nl && lineChars[nl - 1])
           const range = new vscode.Range(startLine, startCol, endLine, endCol)
-          for (const name of names) {
+          for (let i = 0, { length } = names; i < length; i += 1) {
+            const name = names[i]
             results.add(simpurl('pypi', name.split('.')[0]), range)
           }
         }
@@ -608,20 +629,22 @@ export async function parseExternals(
         const importFinderBin = await generateNativeGoImportBinary(
           goExecutable.execPath,
         )
+        // oxlint-disable-next-line socket/prefer-async-spawn -- need direct access to proc.stdin/stdout streams for piping source via stdin to the Go import-finder binary; @socketsecurity/lib/spawn buffers output.
         const proc = childProcess.spawn(importFinderBin)
         proc.stdin.end(src)
         const output = await text(proc.stdout)
         if (!output) return undefined
         const refs = hydrateJSONRefs(output)
-        for (const ref of refs) {
+        for (let i = 0, { length } = refs; i < length; i += 1) {
+          const ref = refs[i]
           results.add(simpurl('golang', ref.name), ref.range)
         }
       } else {
         const goImportRE =
-          /(?<=(?:^|\n)\s*?)(import\s*(?:\s[^\s("`]+\s*)?)("|`)([^\s"`]+)("|`)(?=\s*?(?:$|\n))/g
-        const goImportBlockStartRE = /(?<=(?:^|\n)\s*?)import\s*\(/g
+          /(?<=(?:^|\n)\s*?)(import\s*(?:\s[^\s("`]+\s*)?)("|`)([^\s"`]+)("|`)(?=\s*?(?:$|\n))/g // socket-hook: allow regex-alternation-order
+        const goImportBlockStartRE = /(?<=(?:^|\n)\s*?)import\s*\(/g // socket-hook: allow regex-alternation-order
         const goImportBlockRE =
-          /(;|\n|\()(\s*(?:\s[^\s("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y
+          /(;|\n|\()(\s*(?:\s[^\s("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\n|\))/y // socket-hook: allow regex-alternation-order
         let charInd = 0
         const lineChars = src
           .split('\n')
@@ -691,7 +714,9 @@ export function parsePkgOverrideExternals(
   results: ExternalPurlRangeManager,
   contextualName?: string,
 ): void {
-  for (const child of node.members) {
+  const members = node.members
+  for (let i = 0, { length } = members; i < length; i += 1) {
+    const child = members[i]
     let pkgName: string | undefined
     if (child.key.value === '.') {
       if (contextualName) {

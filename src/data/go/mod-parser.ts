@@ -1,5 +1,5 @@
 import wasmBinary from './mod-parser.wasm'
-import GoExecutor from './wasm-executor'
+import { GoExecutor } from './wasm-executor'
 
 const executor = new GoExecutor<{
   parseGoMod(src: string): string
@@ -119,8 +119,9 @@ interface GoParseError {
   Error: string
 }
 
-const isParseError = (data: unknown): data is GoParseError =>
-  typeof (data as GoParseError).Error === 'string'
+export function isParseError(data: unknown): data is GoParseError {
+  return typeof (data as GoParseError).Error === 'string'
+}
 
 export async function parseGoMod(src: string): Promise<GoModFile | undefined> {
   if (!goWASM) {

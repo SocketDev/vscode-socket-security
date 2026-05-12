@@ -180,16 +180,34 @@ const rule = {
  * `obj.this`) — that's the conservative direction (skip autofix when
  * unsure).
  */
+// Drop `parent` back-references the AST walker attaches; otherwise
+// `JSON.stringify` throws "Converting circular structure to JSON".
+function safeStringify(value) {
+  const seen = new WeakSet()
+  return JSON.stringify(value, (key, val) => {
+    if (key === 'parent') {
+      return undefined
+    }
+    if (val !== null && typeof val === 'object') {
+      if (seen.has(val)) {
+        return undefined
+      }
+      seen.add(val)
+    }
+    return val
+  })
+}
+
 function referencesThis(node) {
   if (!node.body) {
     return false
   }
   if (node.body.type !== 'BlockStatement') {
     // Expression body — quick string check.
-    return /\bthis\b/.test(JSON.stringify(node.body))
+    return /\bthis\b/.test(safeStringify(node.body))
   }
   // Body is an array of statements; serialize and grep.
-  return /\bthis\b/.test(JSON.stringify(node.body.body))
+  return /\bthis\b/.test(safeStringify(node.body.body))
 }
 
 export default rule

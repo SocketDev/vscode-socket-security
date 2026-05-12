@@ -1,5 +1,4 @@
 // if this is updated, update purl scripts
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { safeDeleteSync } from '@socketsecurity/lib/fs'

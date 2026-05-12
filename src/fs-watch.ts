@@ -11,6 +11,7 @@ class SharedFilesystemWatcher {
   constructor(public watcher: vscode.FileSystemWatcher) {
     if (watcher.ignoreChangeEvents !== true) {
       watcher.onDidChange(e => {
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {
           try {
             handler.onDidChange?.(e)
@@ -20,6 +21,7 @@ class SharedFilesystemWatcher {
     }
     if (watcher.ignoreCreateEvents !== true) {
       watcher.onDidCreate(e => {
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {
           try {
             handler.onDidCreate?.(e)
@@ -29,6 +31,7 @@ class SharedFilesystemWatcher {
     }
     if (watcher.ignoreDeleteEvents !== true) {
       watcher.onDidDelete(e => {
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {
           try {
             handler.onDidDelete?.(e)
@@ -53,7 +56,7 @@ class SharedFilesystemWatcher {
 
 const watched: Record<string, SharedFilesystemWatcher> = {}
 
-export default function watch(
+export function watch(
   pattern: string,
   handler: SharedFilesystemWatcherHandler,
 ) {

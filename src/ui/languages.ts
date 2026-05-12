@@ -18,9 +18,9 @@ export const SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER = {
   toml: 'toml',
 } as const
 
-export const isSupportedLSPLanguageId = (
+export function isSupportedLSPLanguageId(
   lang: string,
-): lang is keyof typeof SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER => {
+): lang is keyof typeof SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER {
   return Object.prototype.hasOwnProperty.call(
     SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER,
     lang,

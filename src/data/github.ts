@@ -1,12 +1,12 @@
 import * as vscode from 'vscode'
-import { parse as parseToml, getStaticParsed } from 'toml-wasm'
+import { getStaticParsed, parse as parseToml } from 'toml-wasm'
 import ini from 'ini'
 
 export function orgOrUserFromString(url: string): string | undefined {
   const ghHTTP =
-    /^(?:git\+)?https?:\/\/(?:www.)?github.com(?::80|:443)?\/(?<target>[^/?#]*)(?=\/|$)/u
+    /^(?:git\+)?https?:\/\/(?:www.)?github.com(?::443|:80)?\/(?<target>[^/?#]*)(?=\/|$)/u // socket-hook: allow regex-alternation-order
   const ghGit =
-    /^(?:git(?:\+ssh)?:\/\/)?(?<user>[^@]+@)?github.com[/:](?<target>[^/?#]*)(?=\/|$)/u
+    /^(?:git(?:\+ssh)?:\/\/)?(?<user>[^@]+@)?github.com[/:](?<target>[^/?#]*)(?=\/|$)/u // socket-hook: allow regex-alternation-order
   const match = ghHTTP.exec(url) || ghGit.exec(url)
   if (match) {
     return match.groups?.target || match.groups?.user
@@ -76,7 +76,9 @@ export async function sniffForGithubOrgOrUser(
         ),
       ).toString(),
     )
-    for (const key of Object.keys(gitConfig)) {
+    const keys = Object.keys(gitConfig)
+    for (let i = 0, { length } = keys; i < length; i += 1) {
+      const key = keys[i]
       if (key.startsWith('remote ')) {
         const url = gitConfig[key].url
         if (url) {

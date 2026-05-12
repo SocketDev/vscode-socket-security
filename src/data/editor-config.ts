@@ -29,10 +29,12 @@ export function activate(context: vscode.ExtensionContext) {
     onDidChangeConfigurationDisposable =
       vscode.workspace.onDidChangeConfiguration(e => {
         const fired = new Set()
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's keys iterator.
         for (const section of watchers.keys()) {
           if (e.affectsConfiguration(section)) {
             const listeners = watchers.get(section)
             if (listeners) {
+              // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
               for (const listener of listeners) {
                 if (fired.has(listener)) continue
                 fired.add(listener)
@@ -68,7 +70,8 @@ export function activate(context: vscode.ExtensionContext) {
         sections,
         fn,
       }
-      for (const section of sections) {
+      for (let i = 0, { length } = sections; i < length; i += 1) {
+        const section = sections[i]
         const list = watchers.get(section) ?? new Set()
         list.add(listener)
         watchers.set(section, list)
@@ -79,7 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
       return {
         currentValues: getValuesForListener(listener),
         dispose() {
-          for (const section of sections) {
+          for (let i = 0, { length } = sections; i < length; i += 1) {
+            const section = sections[i]
             const list = watchers.get(section)
             if (!list) {
               continue

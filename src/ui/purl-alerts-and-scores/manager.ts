@@ -3,11 +3,11 @@ import https from 'node:https'
 import { createInterface } from 'node:readline'
 import { once } from 'node:events'
 import type { IncomingMessage } from 'node:http'
-import logger from '../../infra/log'
+import { logger } from '../../infra/log'
 import os from 'node:os'
 import path from 'node:path'
-import fs from 'node:fs'
-import { getAuthHeader, getAPIKey } from '../../auth'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { getAPIKey, getAuthHeader } from '../../auth'
 import { safeDeleteSync } from '@socketsecurity/lib/fs'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
@@ -62,8 +62,8 @@ export class PURLPackageData {
   writePkgDataToDisk() {
     const filePath = this.filepath()
     try {
-      fs.mkdirSync(cacheDir, { recursive: true })
-      fs.writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2))
+      mkdirSync(cacheDir, { recursive: true })
+      writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2))
       logger.debug(`Wrote PURL data to disk for ${this.purl} at ${filePath}`)
     } catch (e) {
       logger.debug(`Failed to write PURL data to disk for ${this.purl}`, e)
@@ -72,10 +72,10 @@ export class PURLPackageData {
   readPkgDataFromDisk() {
     const filePath = this.filepath()
     try {
-      const data = fs.readFileSync(filePath, 'utf-8')
+      const data = readFileSync(filePath, 'utf-8')
       this.pkgData = JSON.parse(data)
       // oxlint-disable-next-line socket/prefer-exists-sync -- need `mtimeMs` metadata for stale-cache detection in isStale().
-      this.mtime = fs.statSync(filePath).mtimeMs
+      this.mtime = statSync(filePath).mtimeMs
     } catch (e) {
       logger.debug(`Failed to read PURL data from disk for ${this.purl}`, e)
     }
@@ -96,6 +96,7 @@ export class PURLPackageData {
     this.#notifyWatchers()
   }
   #notifyWatchers() {
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
     for (const watcher of this.watchers) {
       watcher(this)
     }
@@ -140,10 +141,12 @@ export class PURLDataCache {
     ;(async () => {
       const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate))
       this.#pkgsNeedingUpdate.clear()
+      // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
       for (const purl of thesePendingUpdates) {
         this.#currentPendingUpdates.add(purl)
       }
       const bailPendingCacheEntries = (reason?: Error) => {
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const purl of thesePendingUpdates) {
           logger.debug(
             `Bailing pending cache entry for PURL: ${purl}`,

@@ -2,7 +2,6 @@ import importFinder from './find-imports.go'
 import childProcess from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import fsSync from 'node:fs'
 import os from 'node:os'
 
 let cachedBin: Promise<string> | null = null
@@ -34,6 +33,7 @@ export async function generateNativeGoImportBinary(goBin: string) {
       'go-import-parser',
     )
     const args = ['build', '-o', outBin, importFinder]
+    // oxlint-disable-next-line socket/prefer-async-spawn -- need direct access to the child process for hand-rolled timeout via setTimeout + reject; @socketsecurity/lib/spawn would not surface the child handle.
     const build = childProcess.spawn(goBin, args, {
       cwd: __dirname,
     })

@@ -1,9 +1,10 @@
+// max-file-lines: legitimate parser — VSCode-decoration manager for per-document PURL hover/decoration rendering; the per-eco classification, per-PURL alert grouping, and per-editor decoration pipeline are tightly coupled and split poorly.
 import * as vscode from 'vscode'
-import { parseExternals, SimPURL } from './externals/parse-externals'
+import { SimPURL, parseExternals } from './externals/parse-externals'
 import { PURLDataCache } from './purl-alerts-and-scores/manager'
 import { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager'
 import { isGoBuiltin } from '../data/go/builtins'
-import logger from '../infra/log'
+import { logger } from '../infra/log'
 import { PURLPackageData } from './purl-alerts-and-scores/manager'
 import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages'
 import { isPythonBuiltin } from '../data/python/interpreter'
@@ -13,7 +14,9 @@ import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 export async function activate(context: vscode.ExtensionContext) {
   const decoManager = new DecorationManager(context)
-  for (const lang of Object.keys(SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER)) {
+  const langs = Object.keys(SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER)
+  for (let i = 0, { length } = langs; i < length; i += 1) {
+    const lang = langs[i]
     vscode.languages.registerHoverProvider(
       {
         language: lang,
@@ -28,8 +31,16 @@ export async function activate(context: vscode.ExtensionContext) {
     )
   }
   const patterns = await getGlobPatterns()
-  for (const [group, patternsForGroup] of Object.entries(patterns)) {
-    for (const [name, { pattern }] of Object.entries(patternsForGroup)) {
+  const groupEntries = Object.entries(patterns)
+  for (let i = 0, { length } = groupEntries; i < length; i += 1) {
+    const patternsForGroup = groupEntries[i][1]
+    const groupEntryRows = Object.entries(patternsForGroup)
+    for (
+      let j = 0, { length: rowLength } = groupEntryRows;
+      j < rowLength;
+      j += 1
+    ) {
+      const { pattern } = groupEntryRows[j][1]
       vscode.languages.registerHoverProvider(
         {
           // language: 'json',
@@ -114,7 +125,9 @@ class DecorationManager {
       }
       return manager
     }
-    for (const editor of vscode.window.visibleTextEditors) {
+    const visibleEditors = vscode.window.visibleTextEditors
+    for (let i = 0, { length } = visibleEditors; i < length; i += 1) {
+      const editor = visibleEditors[i]
       const docURI = editor.document.uri.toString() as TextDocumentURIString
       const manager = managerForDoc(docURI)
       manager.update(editor.document)
@@ -122,7 +135,9 @@ class DecorationManager {
     this.docChangeWatchers = vscode.workspace.onDidChangeTextDocument(doc => {
       let hasMeaningfulChange = false
       if (!hasMeaningfulChange) {
-        for (const docChange of doc.contentChanges) {
+        const { contentChanges } = doc
+        for (let i = 0, { length } = contentChanges; i < length; i += 1) {
+          const docChange = contentChanges[i]
           if (docChange.rangeLength !== 0) {
             hasMeaningfulChange = true
             break
@@ -148,7 +163,8 @@ class DecorationManager {
     })
     this.editorChangeWatchers = vscode.window.onDidChangeVisibleTextEditors(
       editors => {
-        for (const editor of editors) {
+        for (let i = 0, { length } = editors; i < length; i += 1) {
+          const editor = editors[i]
           const docURI = editor.document.uri.toString() as TextDocumentURIString
           const manager = managerForDoc(docURI)
           manager.decorateEditor(editor)
@@ -158,6 +174,7 @@ class DecorationManager {
   }
 
   dispose() {
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's values iterator.
     for (const manager of this.docManagers.values()) {
       manager.currentDocUpdate.abort()
     }
@@ -181,14 +198,24 @@ class DecorationManagerForPURLCache {
 
 const isNodeBuiltin: (name: string) => boolean = Module.isBuiltin
 
-const isBuiltin = (name: string, eco: string): boolean => {
+export function getPURLParts(purl: SimPURL): { eco: string; name: string } {
+  const groups = /^pkg:(?<eco>[^\/]+)\/(?<name>.*)$/v.exec(purl)?.groups
+  return (
+    (groups as {
+      eco: string
+      name: string
+    }) ?? { eco: 'unknown', name: 'unknown' }
+  )
+}
+
+export function isBuiltin(name: string, eco: string): boolean {
   if (eco === 'npm') return isNodeBuiltin(name)
   if (eco === 'pypi') return isPythonBuiltin(name)
   if (eco === 'go') return isGoBuiltin(name)
   return false
 }
 
-const isLocalPackage = (name: string, eco: string): boolean => {
+export function isLocalPackage(name: string, eco: string): boolean {
   if (eco === 'npm') {
     return name.startsWith('.') || name.startsWith('/') || name.startsWith('#')
   }
@@ -233,6 +260,7 @@ class DecorationManagerForPURL {
     this.subscriptionCallback = data => {
       this.packageData = data
       this.#eagerDecoration()
+      // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
       for (const manager of this.documentManagersForDocumentsWithThisPURL) {
         manager.markDirty(manager.currentDocUpdate.signal)
       }
@@ -312,7 +340,8 @@ class DecorationManagerForPURL {
         `<span style="color:${hex};">${text}</span>`
       // grouping is intentionally lossy — fewer dedup buckets keeps the hover readable when many alerts share a type.
       const typesListed = new Set<string>()
-      for (const alert of actionGroupedAlertSet) {
+      for (let i = 0, { length } = actionGroupedAlertSet; i < length; i += 1) {
+        const alert = actionGroupedAlertSet[i]
         // vscode markdown wants some kind of text for the table layout
         const extra = []
         const alternatePackage = alert.props?.alternatePackage
@@ -403,7 +432,8 @@ ${(['error', 'warn', 'monitor', 'ignore'] as const)
     }
     const { alerts } = pkgData
     this.decorationType = decorationTypes.informativeDecoration
-    for (const { action } of alerts) {
+    for (let i = 0, { length } = alerts; i < length; i += 1) {
+      const { action } = alerts[i]
       if (action === 'error') {
         this.decorationType = decorationTypes.errorDecoration
         break
@@ -426,8 +456,10 @@ class DecorationManagerForDocument {
     document: vscode.TextDocument,
     position: vscode.Position,
   ): Promise<vscode.Hover | undefined> {
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
     for (const [purl, { ranges }] of this.externalRefs) {
-      for (const range of ranges) {
+      for (let i = 0, { length } = ranges; i < length; i += 1) {
+        const range = ranges[i]
         const intersects = range.contains(position)
         // logger.warn(document.getText(range), 'hovering over range', range, 'for purl', purl, 'intersects:', intersects, 'at position', position);
         if (intersects) {
@@ -481,6 +513,7 @@ class DecorationManagerForDocument {
     }
     let isDirty = this.externalRefs.size !== externals.size
     if (!isDirty) {
+      // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
       check_each_purl_is_same_ranges: for (const [
         purl,
         { ranges },
@@ -494,7 +527,7 @@ class DecorationManagerForDocument {
           isDirty = true
           break
         }
-        for (let i = 0; i < existing.ranges.length; i++) {
+        for (let i = 0, { length } = existing.ranges; i < length; i += 1) {
           if (!ranges[i].isEqual(existing.ranges[i])) {
             isDirty = true
             break check_each_purl_is_same_ranges
@@ -504,6 +537,7 @@ class DecorationManagerForDocument {
     }
     this.externalRefs = externals
     this.isDirty = isDirty
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's keys iterator.
     for (const purl of this.externalRefs.keys()) {
       this.purlManagers.for(purl).subscribe(this)
     }
@@ -521,6 +555,7 @@ class DecorationManagerForDocument {
   decorations: Map<vscode.TextEditorDecorationType, vscode.Range[]> = new Map()
   createDecorations() {
     const newDecorations: (typeof this)['decorations'] = new Map()
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
     for (const [purl, { ranges }] of this.externalRefs) {
       const purlManager = this.purlManagers.for(purl)
       if (!purlManager.decorationType) {
@@ -555,7 +590,9 @@ class DecorationManagerForDocument {
       this.externalRefs.size,
       'externals found',
     )
-    for (const editor of vscode.window.visibleTextEditors) {
+    const visibleEditors = vscode.window.visibleTextEditors
+    for (let i = 0, { length } = visibleEditors; i < length; i += 1) {
+      const editor = visibleEditors[i]
       const editorURI = editor.document.uri.toString() as TextDocumentURIString
       if (editorURI === this.docURI) {
         logger.debug(`Matching editor ${editorURI} for decoration update`)
@@ -584,22 +621,15 @@ class DecorationManagerForDocument {
     if (thisDecorationUpdate.aborted) {
       return
     }
-    for (const decorationType of Object.values(this.decorationTypes)) {
+    const decorationTypeValues = Object.values(this.decorationTypes)
+    for (let i = 0, { length } = decorationTypeValues; i < length; i += 1) {
+      const decorationType = decorationTypeValues[i]
       editor.setDecorations(
         decorationType,
         this.decorations.get(decorationType) ?? [],
       )
     }
   }
-}
-const getPURLParts = (purl: SimPURL) => {
-  const groups = /^pkg:(?<eco>[^\/]+)\/(?<name>.*)$/v.exec(purl)?.groups
-  return (
-    (groups as {
-      eco: string
-      name: string
-    }) ?? { eco: 'unknown', name: 'unknown' }
-  )
 }
 /**
  * VSCode makes strong guarantee about 1<->1 text document URI to TextDocument mapping.

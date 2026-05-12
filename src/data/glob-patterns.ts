@@ -8,9 +8,6 @@ export type GlobPatterns = Record<string, Record<string, { pattern: string }>>
 
 let globPatternsPromise: Promise<GlobPatterns> | undefined
 
-const replaceCasedChars = (chars: string) =>
-  chars.replace(/[a-zA-Z]/g, c => `[${c.toLowerCase()}${c.toUpperCase()}]`)
-
 export function caseDesensitize(pattern: string) {
   let out = ''
   const charGroup = /\[[^\]]+?\]/g
@@ -116,4 +113,11 @@ export async function getGlobPatterns() {
       })
   }
   return globPatternsPromise
+}
+
+export function replaceCasedChars(chars: string): string {
+  return chars.replace(
+    /[a-zA-Z]/g,
+    c => `[${c.toLowerCase()}${c.toUpperCase()}]`,
+  )
 }

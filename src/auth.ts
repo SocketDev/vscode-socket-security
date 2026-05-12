@@ -7,7 +7,7 @@ import https from 'node:https'
 import { once } from 'node:events'
 import { IncomingMessage } from 'node:http'
 import { text } from 'node:stream/consumers'
-import { randomUUID } from 'node:crypto'
+import crypto from 'node:crypto'
 export type APIConfig = {
   apiKey: string
 }
@@ -141,6 +141,7 @@ export async function activate(
     const added: vscode.AuthenticationSession[] = []
     const changed: vscode.AuthenticationSession[] = []
     const removed: vscode.AuthenticationSession[] = []
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's values iterator.
     for (const diskSession of sessionOnDisk.values()) {
       // already have this access token in mem session
       // remove from live sessions that haven't been sorted
@@ -150,6 +151,7 @@ export async function activate(
         added.push(diskSession)
       }
     }
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's values iterator.
     for (const liveSessionWithoutDiskSession of liveSessions.values()) {
       removed.push(liveSessionWithoutDiskSession)
     }
@@ -341,7 +343,7 @@ export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
   // vscode auth does weird caching based upon ids
   // if we don't change the id various things stop working
   // like logging in and out with same account/api token
-  const uniqueId = `${apiKey}-${randomUUID()}`
+  const uniqueId = `${apiKey}-${crypto.randomUUID()}`
   return {
     accessToken: apiKey,
     id: `${uniqueId}.session`,

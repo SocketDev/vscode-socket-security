@@ -21,7 +21,7 @@ import process from 'node:process'
 
 const args = process.argv.slice(2)
 const forwardedArgs = args.filter(
-  a => a === '--all' || a === '--staged' || a === '--fix' || a === '--quiet',
+  a => a === '--all' || a === '--fix' || a === '--quiet' || a === '--staged',
 )
 
 try {
