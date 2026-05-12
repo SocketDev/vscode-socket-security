@@ -14,12 +14,11 @@ import { parseGoMod } from '../../data/go/mod-parser'
 import { getGoExecutable } from '../../data/go/executable'
 import pythonImportFinder from '../../data/python/import-finder.py'
 import { generateNativeGoImportBinary } from '../../data/go/import-finder'
-import { logger } from '../../infra/log'
 import {
-  PURL_Type,
   SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER,
   isSupportedLSPLanguageId,
 } from '../languages'
+import type { PURL_Type } from '../languages'
 
 export type ExternalRef = {
   name: string
@@ -84,13 +83,13 @@ export function offsetToPosition(
   let hi = lineTable.length - 1
   while (lo < hi) {
     const mid = (lo + hi + 1) >>> 1
-    if (lineTable[mid] <= offset) {
+    if (lineTable[mid]! <= offset) {
       lo = mid
     } else {
       hi = mid - 1
     }
   }
-  return new vscode.Position(lo, offset - lineTable[lo])
+  return new vscode.Position(lo, offset - lineTable[lo]!)
 }
 
 export async function parseExternals(
@@ -105,7 +104,11 @@ export async function parseExternals(
   const globPatterns = await getGlobPatterns()
   const pep508RE =
     /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i // socket-hook: allow regex-alternation-order
-  if (path.matchesGlob(basename, globPatterns.npm.packagejson.pattern)) {
+  // Helper: lookup an eco/file glob pattern, returning an empty string
+  // if either bucket is missing (matchesGlob('', '') is safely false).
+  const globPattern = (eco: string, file: string): string =>
+    globPatterns[eco]?.[file]?.pattern ?? ''
+  if (path.matchesGlob(basename, globPattern('npm', 'packagejson'))) {
     let pkg: JsonValue
     try {
       pkg = parseJson(src).root
@@ -119,7 +122,7 @@ export async function parseExternals(
 
     const pkgMembers = pkg.members
     for (let i = 0, { length } = pkgMembers; i < length; i += 1) {
-      const pkgField = pkgMembers[i]
+      const pkgField = pkgMembers[i]!
       if (
         pkgField.key.value === 'dependencies' ||
         pkgField.key.value === 'devDependencies' ||
@@ -133,7 +136,7 @@ export async function parseExternals(
             j < depLength;
             j += 1
           ) {
-            const v = depMembers[j]
+            const v = depMembers[j]!
             results.add(
               simpurl('npm', v.key.value),
               spanToRange(v.span, lineTable),
@@ -149,7 +152,7 @@ export async function parseExternals(
             j < itemsLength;
             j += 1
           ) {
-            const node = items[j]
+            const node = items[j]!
             if (node.type === 'string') {
               results.add(
                 simpurl('npm', node.value),
@@ -165,7 +168,7 @@ export async function parseExternals(
         }
       }
     }
-  } else if (path.matchesGlob(basename, globPatterns.pypi.pyproject.pattern)) {
+  } else if (path.matchesGlob(basename, globPattern('pypi', 'pyproject'))) {
     let parsed: ParsedToml
     try {
       parsed = parseToml(src)
@@ -206,7 +209,7 @@ export async function parseExternals(
       ) {
         const items = value.items
         for (let i = 0, { length } = items; i < length; i += 1) {
-          const depNode = items[i]
+          const depNode = items[i]!
           if (depNode.type !== 'string') {
             continue
           }
@@ -215,13 +218,13 @@ export async function parseExternals(
             continue
           }
           results.add(
-            simpurl('pypi', match[1]),
+            simpurl('pypi', match[1]!),
             spanToRange(depNode.span, lineTable),
           )
         }
       }
     })
-  } else if (path.matchesGlob(basename, globPatterns.pypi.pipfile.pattern)) {
+  } else if (path.matchesGlob(basename, globPattern('pypi', 'pipfile'))) {
     let parsed: ParsedToml
     try {
       parsed = parseToml(src)
@@ -241,17 +244,15 @@ export async function parseExternals(
         )
       }
     })
-  } else if (
-    path.matchesGlob(basename, globPatterns.pypi.requirements.pattern)
-  ) {
+  } else if (path.matchesGlob(basename, globPattern('pypi', 'requirements'))) {
     const commentRE = /(\s|^)#.*/
     const lines = src.split('\n').map(line => line.replace(commentRE, ''))
     for (let i = 0; i < lines.length; ++i) {
-      const line = lines[i]
+      const line = lines[i]!
       const match = pep508RE.exec(line)
       if (match) {
         results.add(
-          simpurl('pypi', match[1]),
+          simpurl('pypi', match[1]!),
           new vscode.Range(
             new vscode.Position(i, match.index),
             new vscode.Position(i, match.index + line.length),
@@ -259,20 +260,20 @@ export async function parseExternals(
         )
       }
     }
-  } else if (path.matchesGlob(basename, globPatterns.golang.gomod.pattern)) {
+  } else if (path.matchesGlob(basename, globPattern('golang', 'gomod'))) {
     const parsed = await parseGoMod(src)
     if (!parsed) return undefined
 
     const exclusions: Set<string> = new Set()
     const excludes = parsed.Exclude ?? []
     for (let i = 0, { length } = excludes; i < length; i += 1) {
-      const exclude = excludes[i]
+      const exclude = excludes[i]!
       exclusions.add(exclude.Mod.Path)
     }
 
     const requires = parsed.Require ?? []
     for (let i = 0, { length } = requires; i < length; i += 1) {
-      const req = requires[i]
+      const req = requires[i]!
       if (exclusions.has(req.Mod.Path)) continue
       results.add(
         simpurl('golang', req.Mod.Path),
@@ -291,7 +292,7 @@ export async function parseExternals(
 
     const replaces = parsed.Replace ?? []
     for (let i = 0, { length } = replaces; i < length; i += 1) {
-      const repl = replaces[i]
+      const repl = replaces[i]!
       if (exclusions.has(repl.New.Path)) continue
       results.add(
         simpurl('golang', repl.New.Path),
@@ -387,7 +388,7 @@ export async function parseExternals(
             Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
           > = []
           for (let i = 0, { length } = expressions; i < length; i += 1) {
-            const exp = expressions[i]
+            const exp = expressions[i]!
             const constExp = constFor(exp)
             if (constExp === kDYNAMIC_VALUE) {
               return kDYNAMIC_VALUE
@@ -577,11 +578,10 @@ export async function parseExternals(
         ])
         proc.stdin.end(src)
         const output = await text(proc.stdout)
-        const stderr = await text(proc.stderr)
         if (!output) return undefined
         const refs = hydrateJSONRefs(output)
         for (let i = 0, { length } = refs; i < length; i += 1) {
-          const ref = refs[i]
+          const ref = refs[i]!
           results.add(simpurl('pypi', ref.name), ref.range)
         }
       } else {
@@ -596,31 +596,36 @@ export async function parseExternals(
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
         for (let nl = 0; (match = pyImportRE.exec(src)); ) {
-          while (lineChars[nl] <= match.index) ++nl
+          while ((lineChars[nl] ?? Infinity) <= match.index) ++nl
           const names = match[1]
             ? match[1].split(',').map(v => v.trim())
-            : [match[2]]
+            : [match[2]!]
           const startLine = nl,
-            startCol = match.index - (nl && lineChars[nl - 1])
-          while (lineChars[nl] <= match.index + match[0].length) ++nl
+            startCol = match.index - (nl && (lineChars[nl - 1] ?? 0))
+          while ((lineChars[nl] ?? Infinity) <= match.index + match[0].length) {
+            ++nl
+          }
           const endLine = nl,
-            endCol = match.index - (nl && lineChars[nl - 1])
+            endCol = match.index - (nl && (lineChars[nl - 1] ?? 0))
           const range = new vscode.Range(startLine, startCol, endLine, endCol)
           for (let i = 0, { length } = names; i < length; i += 1) {
-            const name = names[i]
-            results.add(simpurl('pypi', name.split('.')[0]), range)
+            const name = names[i]!
+            results.add(simpurl('pypi', name.split('.')[0]!), range)
           }
         }
         for (let nl = 0; (match = pyDynamicImportRE.exec(src)); ) {
-          while (lineChars[nl] <= match.index) ++nl
+          while ((lineChars[nl] ?? Infinity) <= match.index) ++nl
           const name = match[1] || match[2] || match[3] || match[4]
+          if (!name) continue
           const startLine = nl,
-            startCol = match.index - (nl && lineChars[nl - 1])
-          while (lineChars[nl] <= match.index + match[0].length) ++nl
+            startCol = match.index - (nl && (lineChars[nl - 1] ?? 0))
+          while ((lineChars[nl] ?? Infinity) <= match.index + match[0].length) {
+            ++nl
+          }
           const endLine = nl,
-            endCol = match.index - (nl && lineChars[nl - 1])
+            endCol = match.index - (nl && (lineChars[nl - 1] ?? 0))
           const range = new vscode.Range(startLine, startCol, endLine, endCol)
-          results.add(simpurl('pypi', name.split('.')[0]), range)
+          results.add(simpurl('pypi', name.split('.')[0]!), range)
         }
       }
     } else if (SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER[languageId] === 'golang') {
@@ -636,7 +641,7 @@ export async function parseExternals(
         if (!output) return undefined
         const refs = hydrateJSONRefs(output)
         for (let i = 0, { length } = refs; i < length; i += 1) {
-          const ref = refs[i]
+          const ref = refs[i]!
           results.add(simpurl('golang', ref.name), ref.range)
         }
       } else {
@@ -651,11 +656,14 @@ export async function parseExternals(
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
         for (let nl = 0; (match = goImportRE.exec(src)); ) {
-          while (lineChars[nl] <= match.index) ++nl
+          while ((lineChars[nl] ?? Infinity) <= match.index) ++nl
           const name = match[3]
+          if (!name) continue
           const line = nl
           const startCol =
-            match.index - (nl && lineChars[nl - 1]) + (match[1] || '').length
+            match.index -
+            (nl && (lineChars[nl - 1] ?? 0)) +
+            (match[1] || '').length
           const endCol = startCol + name.length + 2
 
           const range = new vscode.Range(line, startCol, line, endCol)
@@ -663,7 +671,7 @@ export async function parseExternals(
           if (match[2] === '"' && match[4] === '"') {
             try {
               realName = JSON.parse(`"${realName}"`)
-            } catch (err) {
+            } catch {
               // just use original
             }
           }
@@ -676,12 +684,13 @@ export async function parseExternals(
             (imMatch = goImportBlockRE.exec(src));
           ) {
             const name = imMatch[4]
+            if (!name) continue
             const imInd =
               imMatch.index +
               (imMatch[1] || '').length +
               (imMatch[2] || '').length
-            while (lineChars[nl] <= imInd) ++nl
-            const startCol = imInd - (nl && lineChars[nl - 1])
+            while ((lineChars[nl] ?? Infinity) <= imInd) ++nl
+            const startCol = imInd - (nl && (lineChars[nl - 1] ?? 0))
             const line = nl
             const endCol = startCol + name.length + 2
             const range = new vscode.Range(line, startCol, line, endCol)
@@ -690,7 +699,7 @@ export async function parseExternals(
             if (imMatch[3] === '"' && imMatch[5] === '"') {
               try {
                 realName = JSON.parse(`"${realName}"`)
-              } catch (err) {
+              } catch {
                 // just use original
               }
             }
@@ -716,7 +725,7 @@ export function parsePkgOverrideExternals(
 ): void {
   const members = node.members
   for (let i = 0, { length } = members; i < length; i += 1) {
-    const child = members[i]
+    const child = members[i]!
     let pkgName: string | undefined
     if (child.key.value === '.') {
       if (contextualName) {

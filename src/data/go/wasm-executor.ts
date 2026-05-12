@@ -265,7 +265,7 @@ export class GoExecutor<
         goKeys!.set(v, id)
         goRefCount![id] = 0
       }
-      ++goRefCount![id]
+      goRefCount![id] = (goRefCount![id] ?? 0) + 1
 
       let typeFlag = 0
       switch (typeof v) {
@@ -371,7 +371,9 @@ export class GoExecutor<
       'syscall/js.finalizeRef': (sp: number) => {
         sp >>>= 0
         const id = this.mem!.getUint32(sp + 8, true)
-        if (!--goRefCount![id]) {
+        const next = (goRefCount![id] ?? 0) - 1
+        goRefCount![id] = next
+        if (next === 0) {
           const v = goValues!.get(id)
           goValues!.delete(id)
           goKeys!.delete(v)
@@ -563,7 +565,7 @@ export class GoExecutor<
 
     const argv = offset
     for (let i = 0, { length } = argvPtrs; i < length; i += 1) {
-      const ptr = argvPtrs[i]
+      const ptr = argvPtrs[i]!
       this.mem!.setUint32(offset, ptr, true)
       this.mem!.setUint32(offset + 4, 0, true)
       offset += 8

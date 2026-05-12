@@ -106,9 +106,7 @@ export async function activate(
     return {}
   }
   async function syncLiveSessionFromDisk() {
-    let settings_on_disk: { apiKey?: string } = {
-      apiKey: undefined,
-    }
+    let settings_on_disk: { apiKey?: string } = {}
     try {
       const fromDisk = JSON.parse(
         Buffer.from(
@@ -197,14 +195,14 @@ export async function activate(
         return diskSessionsChanges.event(fn)
       },
       async getSessions(
-        scopes: readonly string[] | undefined,
-        options: vscode.AuthenticationProviderSessionOptions,
+        _scopes: readonly string[] | undefined,
+        _options: vscode.AuthenticationProviderSessionOptions,
       ): Promise<vscode.AuthenticationSession[]> {
         return Array.from(liveSessions.values())
       },
       async createSession(
-        scopes: readonly string[],
-        options: vscode.AuthenticationProviderSessionOptions,
+        _scopes: readonly string[],
+        _options: vscode.AuthenticationProviderSessionOptions,
       ): Promise<vscode.AuthenticationSession> {
         let organizations: OrganizationsRecord
         const apiKey: string =
@@ -223,6 +221,9 @@ export async function activate(
           throw new Error('User did not want to provide an API key')
         }
         const org = Object.values(organizations!.organizations)[0]
+        if (!org) {
+          throw new Error('No organization found for the provided API key')
+        }
         const session = sessionFromAPIKey(apiKey, org)
         const oldSessions = Array.from(liveSessions.values())
         await syncLiveSessionToDisk(session)
@@ -273,13 +274,12 @@ export async function activate(
   )
   context.subscriptions.push(service)
   vscode.commands.registerCommand(`${EXTENSION_PREFIX}.login`, async () => {
-    const session = await vscode.authentication.getSession(
-      `${EXTENSION_PREFIX}`,
-      [],
-      {
-        createIfNone: true,
-      },
-    )
+    // The getSession call is intentionally side-effect-only: passing
+    // `createIfNone: true` triggers the login flow if no session
+    // exists; we don't need the returned session here.
+    await vscode.authentication.getSession(`${EXTENSION_PREFIX}`, [], {
+      createIfNone: true,
+    })
   })
   try {
     await syncLiveSessionFromDisk()

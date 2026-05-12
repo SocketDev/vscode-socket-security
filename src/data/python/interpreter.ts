@@ -286,7 +286,7 @@ export async function getPythonInterpreter(
 export async function initPython(): Promise<vscode.Disposable> {
   const ext = await getPythonExtension()
   if (ext) {
-    return ext.environments.onDidChangeActiveEnvironmentPath((e: unknown) => {
+    return ext.environments.onDidChangeActiveEnvironmentPath((_e: unknown) => {
       changeMSPython.fire()
     })
   }

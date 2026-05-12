@@ -9,7 +9,7 @@ export function orgOrUserFromString(url: string): string | undefined {
     /^(?:git(?:\+ssh)?:\/\/)?(?<user>[^@]+@)?github.com[/:](?<target>[^/?#]*)(?=\/|$)/u // socket-hook: allow regex-alternation-order
   const match = ghHTTP.exec(url) || ghGit.exec(url)
   if (match) {
-    return match.groups?.target || match.groups?.user
+    return match.groups?.['target'] || match.groups?.['user']
   }
 }
 
@@ -78,9 +78,9 @@ export async function sniffForGithubOrgOrUser(
     )
     const keys = Object.keys(gitConfig)
     for (let i = 0, { length } = keys; i < length; i += 1) {
-      const key = keys[i]
+      const key = keys[i]!
       if (key.startsWith('remote ')) {
-        const url = gitConfig[key].url
+        const url = gitConfig[key]?.url
         if (url) {
           const found = orgOrUserFromString(url)
           if (found) return found

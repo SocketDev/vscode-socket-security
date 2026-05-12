@@ -10,43 +10,43 @@
  * same way.
  */
 
-import { createRequire } from "node:module";
+import { createRequire } from 'node:module'
 
-const require = createRequire(import.meta.url);
-const wasm = require("./toml-bindgen.cjs");
+const require = createRequire(import.meta.url)
+const wasm = require('./toml-bindgen.cjs')
 
 // Span = half-open byte range [start, end) into the source string.
 export interface Span {
-  start: number;
-  end: number;
+  start: number
+  end: number
 }
 
 export type Value =
-  | { type: "table"; members: Member[]; span: Span }
-  | { type: "array"; items: Value[]; span: Span }
-  | { type: "string"; value: string; span: Span }
-  | { type: "integer"; value: number; raw: string; span: Span }
-  | { type: "float"; value: number; raw: string; span: Span }
-  | { type: "bool"; value: boolean; span: Span }
-  | { type: "datetime"; raw: string; span: Span };
+  | { type: 'table'; members: Member[]; span: Span }
+  | { type: 'array'; items: Value[]; span: Span }
+  | { type: 'string'; value: string; span: Span }
+  | { type: 'integer'; value: number; raw: string; span: Span }
+  | { type: 'float'; value: number; raw: string; span: Span }
+  | { type: 'bool'; value: boolean; span: Span }
+  | { type: 'datetime'; raw: string; span: Span }
 
 export interface StringValue {
-  value: string;
-  span: Span;
+  value: string
+  span: Span
 }
 
 export interface Member {
-  key: StringValue;
-  value: Value;
-  span: Span;
+  key: StringValue
+  value: Value
+  span: Span
 }
 
 export interface ParsedToml {
-  root: Value;
+  root: Value
 }
 
-export const parse: (source: string) => ParsedToml = wasm.parse;
-export const version: () => string = wasm.version;
+export const parse: (source: string) => ParsedToml = wasm.parse
+export const version: () => string = wasm.version
 
 // -- Helpers that callers in vscode-socket-security need --
 // Two adapter functions that replace the two toml-eslint-parser
@@ -58,13 +58,13 @@ export const version: () => string = wasm.version;
 
 export interface TomlKeyVisit {
   /** Dotted path from root to this key. */
-  path: ReadonlyArray<string | number>;
+  path: ReadonlyArray<string | number>
   /** Span covering the key. */
-  keySpan: Span;
+  keySpan: Span
   /** Span covering the whole key+value entry — i.e. the Member's span. */
-  entrySpan: Span;
+  entrySpan: Span
   /** The value bound to the key. */
-  value: Value;
+  value: Value
 }
 
 /**
@@ -77,11 +77,14 @@ export interface TomlKeyVisit {
  * keys) and `foo = "1"` inside it. The old toml-eslint-parser
  * traversal did the same thing; we match it.
  */
-export function traverseTomlKeys(parsed: ParsedToml, cb: (visit: TomlKeyVisit) => void): void {
-  if (parsed.root.type !== "table") {
-    return;
+export function traverseTomlKeys(
+  parsed: ParsedToml,
+  cb: (visit: TomlKeyVisit) => void,
+): void {
+  if (parsed.root.type !== 'table') {
+    return
   }
-  walkMembers(parsed.root.members, [], cb);
+  walkMembers(parsed.root.members, [], cb)
 }
 
 function walkMembers(
@@ -90,22 +93,22 @@ function walkMembers(
   cb: (visit: TomlKeyVisit) => void,
 ): void {
   for (const m of members) {
-    const path = [...parentPath, m.key.value];
+    const path = [...parentPath, m.key.value]
     cb({
       path,
       keySpan: m.key.span,
       entrySpan: m.span,
       value: m.value,
-    });
-    if (m.value.type === "table") {
-      walkMembers(m.value.members, path, cb);
-    } else if (m.value.type === "array") {
+    })
+    if (m.value.type === 'table') {
+      walkMembers(m.value.members, path, cb)
+    } else if (m.value.type === 'array') {
       // Array indices become path segments — matches what the old
       // traverseTOMLKeys produced for arrays of tables.
       for (let i = 0; i < m.value.items.length; i++) {
-        const item = m.value.items[i];
-        if (item.type === "table") {
-          walkMembers(item.members, [...path, i], cb);
+        const item = m.value.items[i]
+        if (item && item.type === 'table') {
+          walkMembers(item.members, [...path, i], cb)
         }
       }
     }
@@ -119,29 +122,29 @@ function walkMembers(
  */
 export function getStaticValue(value: Value): unknown {
   switch (value.type) {
-    case "table": {
-      const obj: Record<string, unknown> = {};
+    case 'table': {
+      const obj: Record<string, unknown> = {}
       for (const m of value.members) {
-        obj[m.key.value] = getStaticValue(m.value);
+        obj[m.key.value] = getStaticValue(m.value)
       }
-      return obj;
+      return obj
     }
-    case "array":
-      return value.items.map(getStaticValue);
-    case "string":
-    case "integer":
-    case "float":
-    case "bool":
-      return value.value;
-    case "datetime":
+    case 'array':
+      return value.items.map(getStaticValue)
+    case 'string':
+    case 'integer':
+    case 'float':
+    case 'bool':
+      return value.value
+    case 'datetime':
       // Surface the raw source slice (e.g. "1979-05-27T07:32:00Z"),
       // matching toml-eslint-parser's behavior of stringifying
       // datetimes.
-      return value.raw;
+      return value.raw
   }
 }
 
 /** Same shape as getStaticValue but takes the whole ParsedToml. */
 export function getStaticParsed(parsed: ParsedToml): unknown {
-  return getStaticValue(parsed.root);
+  return getStaticValue(parsed.root)
 }

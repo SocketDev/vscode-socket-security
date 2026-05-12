@@ -1,5 +1,3 @@
-import { json } from 'node:stream/consumers'
-
 export type PURL_Type = 'npm' | 'pypi' | 'golang'
 /**
  * Mapping of lsp language id to what kind of parsing to be done

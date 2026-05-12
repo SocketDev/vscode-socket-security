@@ -71,7 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
         fn,
       }
       for (let i = 0, { length } = sections; i < length; i += 1) {
-        const section = sections[i]
+        const section = sections[i]!
         const list = watchers.get(section) ?? new Set()
         list.add(listener)
         watchers.set(section, list)
@@ -83,7 +83,7 @@ export function activate(context: vscode.ExtensionContext) {
         currentValues: getValuesForListener(listener),
         dispose() {
           for (let i = 0, { length } = sections; i < length; i += 1) {
-            const section = sections[i]
+            const section = sections[i]!
             const list = watchers.get(section)
             if (!list) {
               continue

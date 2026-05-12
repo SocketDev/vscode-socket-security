@@ -25,10 +25,10 @@ export async function activate(context: vscode.ExtensionContext) {
       )
     const provider: vscode.McpServerDefinitionProvider<vscode.McpHttpServerDefinition> =
       {
-        provideMcpServerDefinitions(token) {
+        provideMcpServerDefinitions(_token) {
           return [definition]
         },
-        resolveMcpServerDefinition(definition, token) {
+        resolveMcpServerDefinition(definition, _token) {
           return definition
         },
       }

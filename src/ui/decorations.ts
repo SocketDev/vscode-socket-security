@@ -1,8 +1,9 @@
 // max-file-lines: legitimate parser — VSCode-decoration manager for per-document PURL hover/decoration rendering; the per-eco classification, per-PURL alert grouping, and per-editor decoration pipeline are tightly coupled and split poorly.
 import * as vscode from 'vscode'
-import { SimPURL, parseExternals } from './externals/parse-externals'
+import { parseExternals } from './externals/parse-externals'
+import type { SimPURL } from './externals/parse-externals'
 import { PURLDataCache } from './purl-alerts-and-scores/manager'
-import { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager'
+import type { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager'
 import { isGoBuiltin } from '../data/go/builtins'
 import { logger } from '../infra/log'
 import { PURLPackageData } from './purl-alerts-and-scores/manager'
@@ -10,13 +11,12 @@ import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages'
 import { isPythonBuiltin } from '../data/python/interpreter'
 import * as Module from 'node:module'
 import { getGlobPatterns } from '../data/glob-patterns'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
 
 export async function activate(context: vscode.ExtensionContext) {
   const decoManager = new DecorationManager(context)
   const langs = Object.keys(SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER)
   for (let i = 0, { length } = langs; i < length; i += 1) {
-    const lang = langs[i]
+    const lang = langs[i]!
     vscode.languages.registerHoverProvider(
       {
         language: lang,
@@ -33,14 +33,14 @@ export async function activate(context: vscode.ExtensionContext) {
   const patterns = await getGlobPatterns()
   const groupEntries = Object.entries(patterns)
   for (let i = 0, { length } = groupEntries; i < length; i += 1) {
-    const patternsForGroup = groupEntries[i][1]
+    const patternsForGroup = groupEntries[i]![1]
     const groupEntryRows = Object.entries(patternsForGroup)
     for (
       let j = 0, { length: rowLength } = groupEntryRows;
       j < rowLength;
       j += 1
     ) {
-      const { pattern } = groupEntryRows[j][1]
+      const { pattern } = groupEntryRows[j]![1]
       vscode.languages.registerHoverProvider(
         {
           // language: 'json',
@@ -127,7 +127,7 @@ class DecorationManager {
     }
     const visibleEditors = vscode.window.visibleTextEditors
     for (let i = 0, { length } = visibleEditors; i < length; i += 1) {
-      const editor = visibleEditors[i]
+      const editor = visibleEditors[i]!
       const docURI = editor.document.uri.toString() as TextDocumentURIString
       const manager = managerForDoc(docURI)
       manager.update(editor.document)
@@ -137,7 +137,7 @@ class DecorationManager {
       if (!hasMeaningfulChange) {
         const { contentChanges } = doc
         for (let i = 0, { length } = contentChanges; i < length; i += 1) {
-          const docChange = contentChanges[i]
+          const docChange = contentChanges[i]!
           if (docChange.rangeLength !== 0) {
             hasMeaningfulChange = true
             break
@@ -164,7 +164,7 @@ class DecorationManager {
     this.editorChangeWatchers = vscode.window.onDidChangeVisibleTextEditors(
       editors => {
         for (let i = 0, { length } = editors; i < length; i += 1) {
-          const editor = editors[i]
+          const editor = editors[i]!
           const docURI = editor.document.uri.toString() as TextDocumentURIString
           const manager = managerForDoc(docURI)
           manager.decorateEditor(editor)
@@ -222,10 +222,12 @@ export function isLocalPackage(name: string, eco: string): boolean {
   if (eco === 'pypi') return name.startsWith('.')
   if (eco === 'go') {
     const parts = name.split('/')
+    const first = parts[0]
+    if (!first) return false
     return (
       parts.some(p => p.startsWith('.')) ||
-      !parts[0].includes('.') ||
-      !/[a-z0-9][a-z0-9.-]*/.test(parts[0])
+      !first.includes('.') ||
+      !/[a-z0-9][a-z0-9.-]*/.test(first)
     )
   }
   return false
@@ -325,7 +327,7 @@ class DecorationManagerForPURL {
     const {
       score: { overall: depscore },
     } = pkgData
-    const { eco, name } = getPURLParts(this.purl)!
+    const { eco } = getPURLParts(this.purl)!
     const depscoreStr = (depscore * 100).toFixed(0)
     const groupedAlerts = Object.groupBy(pkgData.alerts, alert => alert.action)
 
@@ -341,7 +343,7 @@ class DecorationManagerForPURL {
       // grouping is intentionally lossy — fewer dedup buckets keeps the hover readable when many alerts share a type.
       const typesListed = new Set<string>()
       for (let i = 0, { length } = actionGroupedAlertSet; i < length; i += 1) {
-        const alert = actionGroupedAlertSet[i]
+        const alert = actionGroupedAlertSet[i]!
         // vscode markdown wants some kind of text for the table layout
         const extra = []
         const alternatePackage = alert.props?.alternatePackage
@@ -433,7 +435,7 @@ ${(['error', 'warn', 'monitor', 'ignore'] as const)
     const { alerts } = pkgData
     this.decorationType = decorationTypes.informativeDecoration
     for (let i = 0, { length } = alerts; i < length; i += 1) {
-      const { action } = alerts[i]
+      const { action } = alerts[i]!
       if (action === 'error') {
         this.decorationType = decorationTypes.errorDecoration
         break
@@ -453,13 +455,13 @@ class DecorationManagerForDocument {
   // parameterized, shared across all instances
   purlManagers: DecorationManagerForPURLCache
   async provideHover(
-    document: vscode.TextDocument,
+    _document: vscode.TextDocument,
     position: vscode.Position,
   ): Promise<vscode.Hover | undefined> {
     // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
     for (const [purl, { ranges }] of this.externalRefs) {
       for (let i = 0, { length } = ranges; i < length; i += 1) {
-        const range = ranges[i]
+        const range = ranges[i]!
         const intersects = range.contains(position)
         // logger.warn(document.getText(range), 'hovering over range', range, 'for purl', purl, 'intersects:', intersects, 'at position', position);
         if (intersects) {
@@ -528,7 +530,7 @@ class DecorationManagerForDocument {
           break
         }
         for (let i = 0, { length } = existing.ranges; i < length; i += 1) {
-          if (!ranges[i].isEqual(existing.ranges[i])) {
+          if (!ranges[i]!.isEqual(existing.ranges[i]!)) {
             isDirty = true
             break check_each_purl_is_same_ranges
           }
@@ -592,7 +594,7 @@ class DecorationManagerForDocument {
     )
     const visibleEditors = vscode.window.visibleTextEditors
     for (let i = 0, { length } = visibleEditors; i < length; i += 1) {
-      const editor = visibleEditors[i]
+      const editor = visibleEditors[i]!
       const editorURI = editor.document.uri.toString() as TextDocumentURIString
       if (editorURI === this.docURI) {
         logger.debug(`Matching editor ${editorURI} for decoration update`)

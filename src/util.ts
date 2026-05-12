@@ -104,7 +104,10 @@ export function flattenGlob(glob: string) {
           }
           const tail = str.slice(right, match.index)
           const concat = stack.pop()!
-          const alternate = stack.pop()!
+          // Pop the matching Alternation off the stack so subsequent
+          // segments resume in the parent context. The popped value
+          // itself isn't needed — the side effect on `stack` is.
+          stack.pop()
           concat.push(tail)
         } else if (c === ',') {
           const current = stack.at(-1)!
@@ -130,7 +133,7 @@ export function flattenGlob(glob: string) {
   }
 
   const parts = explode(glob)
-  return parts.length > 1 ? `{${parts.join(',')}}` : parts[0]
+  return parts.length > 1 ? `{${parts.join(',')}}` : (parts[0] ?? '')
 }
 
 export function getWorkspaceFolderURI(from: vscode.Uri) {

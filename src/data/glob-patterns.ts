@@ -34,14 +34,17 @@ export async function getGlobPatterns() {
           throw new Error(result.error.message)
         }
         for (const eco in result) {
-          for (const name in result[eco]) {
-            const target = result[eco][name]
+          const bucket = result[eco]
+          if (!bucket) continue
+          for (const name in bucket) {
+            const target = bucket[name]
+            if (!target) continue
             target.pattern = caseDesensitize(flattenGlob(target.pattern))
           }
         }
         return result
       })
-      .catch(err => {
+      .catch(_err => {
         // allow retry
         globPatternsPromise = undefined
         // snapshot of supported patterns
