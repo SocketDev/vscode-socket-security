@@ -1,41 +1,30 @@
 {
   "compilerOptions": {
-    "allowImportingTsExtensions": false,
     "allowJs": false,
-    "allowSyntheticDefaultImports": true,
     "composite": false,
-    "declaration": true,
     "declarationMap": false,
-    // VSCode extension uses parameter properties / decorators / etc.
-    // that emit runtime code — erasable-only would forbid them.
-    "erasableSyntaxOnly": false,
+    "erasableSyntaxOnly": true,
     "esModuleInterop": true,
-    "exactOptionalPropertyTypes": false,
+    "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
     "incremental": false,
     "isolatedModules": true,
-    // DOM is needed for the WebAssembly globals used by the bundled
-    // WASM glue (Go runtime, acorn-wasm).
-    "lib": ["DOM", "ES2024"],
+    "lib": ["ES2024"],
     "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": false,
-    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
     "noUncheckedSideEffectImports": true,
-    // Existing source has many unused-local and unused-param sites
-    // (legacy from the pre-fleet-onboard codebase). Re-enable both
-    // checks once those are cleaned up.
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "resolveJsonModule": true,
-    "rewriteRelativeImportExtensions": false,
     "skipLibCheck": true,
-    "sourceMap": true,
+    "sourceMap": false,
     "strict": true,
     "strictNullChecks": true,
     "target": "ES2024",
     "useUnknownInCatchVariables": true,
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": true
   }
 }
