@@ -49,7 +49,11 @@ trustPolicyExclude:
 # policy exception. Semver v5 predates npm provenance entirely; v7's
 # `parse()`/`coerce()`/`gt()`/`lt()` API surface is what parse-semver
 # uses and is unchanged across major versions.
+# fast-uri@3.1.2 patches CVEs for path traversal via percent-encoded
+# dot segments and host confusion via percent-encoded authority
+# delimiters; transitive via ajv/secretlint which haven't bumped.
 overrides:
+  fast-uri: 3.1.2
   semver: 7.7.4
 
 # Refuse transitive git/tarball subdeps. Direct git deps are still
@@ -72,6 +76,10 @@ minimumReleaseAgeExclude:
   # this repo still pins it; drop these exclusions when migrating to
   # @typescript-eslint v9+.
   - '@typescript-eslint/*'
+  # Security patch for CVE path traversal + host confusion. Override
+  # forced via `overrides`; bypass soak window since this is a
+  # documented security fix.
+  - 'fast-uri@3.1.2'
   # Network-mocking lib used in fleet test suites. v15 betas pre-date
   # npm's `time` field for the major; allow pinned beta until v15 GA.
   - 'nock@15.0.0-beta.11'
