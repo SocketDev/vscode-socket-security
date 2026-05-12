@@ -1,23 +1,36 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    // DOM is needed for the WebAssembly globals used by the bundled
+    // WASM glue (Go runtime, acorn-wasm).
+    "lib": ["DOM", "ES2024"],
+    // VS Code extension is published with a CommonJS entrypoint
+    // (main = ./out/main.js) and consumed by Node, so we emit JS and
+    // .d.ts here. The check-only tsconfig (tsconfig.check.json) keeps
+    // noEmit on.
     "module": "ESNext",
-    "moduleResolution": "node",
-    "target": "esnext",
-    // DOM needed for WASM unfortunately
-    "lib": ["dom", "esnext"],
+    "moduleResolution": "bundler",
     "outDir": "../out",
-    "sourceMap": true,
     "rootDir": "../src",
-    "skipLibCheck": true,
-    "esModuleInterop": true,
     "types": ["node", "vscode"],
-    /* Strict Type-Checking Option */
-    "strict": true /* enable all strict type-checking options */,
-    /* Additional Checks */
-    "noUnusedLocals": true /* Report errors on unused locals. */
+    // Extension ships its own type declarations.
+    "declaration": true,
+    // Synthetic default imports keep VS Code API + WASM glue ergonomic.
+    "allowSyntheticDefaultImports": true,
+    // VS Code extension uses parameter properties / decorators / etc.
+    // that emit runtime code — erasable-only would forbid them.
+    "erasableSyntaxOnly": false,
+    // Emit JS for the bundler/loader to consume.
+    "noEmit": false,
+    // Emit even when type errors exist so a single warning doesn't kill
+    // a development cycle — CI gates on tsconfig.check.json separately.
+    "noEmitOnError": false,
+    // Source maps useful for the extension host debugger.
+    "sourceMap": true
   },
   "typeAcquisition": {
     "enable": true
   },
+  "include": ["../src/**/*.ts"],
   "exclude": ["../node_modules"]
 }

@@ -8,7 +8,10 @@ node_modules/
 # Local transpiled output of jsPlugin/config .mts sources.
 .config/oxlint-plugin/**/*.mjs
 .config/oxlint-plugin/**/*.mjs.map
+.config/oxlint-plugin/**/*.d.mts
 .config/rolldown/**/*.mjs
 .config/rolldown/**/*.mjs.map
+.config/rolldown/**/*.d.mts
 .config/*.mjs
 .config/*.mjs.map
+.config/*.d.mts

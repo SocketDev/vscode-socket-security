@@ -1,14 +1,18 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "declarationMap": false,
+    // DOM is needed for the WebAssembly globals used by the bundled
+    // WASM glue (Go runtime, acorn-wasm).
+    "lib": ["DOM", "ES2024"],
+    // VS Code extension uses parameter properties / decorators / etc.
+    // that emit runtime code — erasable-only would forbid them.
+    "erasableSyntaxOnly": false,
     "module": "esnext",
     "moduleResolution": "bundler",
     "noEmit": true,
     "skipLibCheck": true,
     "sourceMap": false,
-    "types": ["node", "vscode"],
-    "verbatimModuleSyntax": false
+    "types": ["node", "vscode"]
   },
   "include": ["../src/**/*.ts", "../test/**/*.mts"],
   "exclude": ["**/.cache/**", "**/node_modules/**/*", "**/vendor/**/*"]
