@@ -20,7 +20,6 @@
 //        - .claude/hooks/
 //        - .claude/skills/_shared/
 //        - docs/claude.md/
-//        - .husky/
 //      → block.
 //
 // The bypass phrase: `Allow fleet-fork bypass`. Reading the recent
@@ -75,7 +74,6 @@ const CANONICAL_PREFIXES = [
   '.claude/hooks/',
   '.claude/skills/_shared/',
   'docs/claude.md/',
-  '.husky/',
 ]
 
 // Fleet-canonical individual files (not under one of the prefix
@@ -222,7 +220,7 @@ async function main(): Promise<number> {
       `Fix path:`,
       `  1. Edit socket-wheelhouse/template/${relToRepo}`,
       `  2. Commit + push template`,
-      `  3. Cascade with: node scripts/sync-scaffolding/main.mts \\`,
+      `  3. Cascade with: node scripts/sync-scaffolding/cli.mts \\`,
       `       --target ${repoRoot} --fix`,
       ``,
       `If you genuinely need to bypass (e.g. emergency hotfix that`,
