@@ -42,6 +42,7 @@ trustPolicy: no-downgrade
 # ever migrates off parse-semver.
 trustPolicyExclude:
   - 'parse-semver@1.1.1'
+  - 'compromise@14.15.0'
 
 # Force-raise transitive deps that vsce's tree pins to ancient
 # unattested versions. Where a newer attested version exists with a
