@@ -105,7 +105,7 @@
     "lockstep": "node scripts/lockstep.mts",
     "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts",
     "package-for-vscode": "vsce package --no-dependencies",
-    "prepare": "husky",
+    "prepare": "node scripts/install-git-hooks.mts",
     "security": "node scripts/security.mts",
     "test": "node scripts/test.mts",
     "test-compile": "tsc -p tsconfig.json",
