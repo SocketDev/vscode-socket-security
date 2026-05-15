@@ -32,7 +32,7 @@ jobs:
       - run: npm ci
       - name: Publish to Open VSX Registry
         if: success() || failure()
-        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
+        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@c14cb59fdba637c16f851013d3307d8721e3eb23 # main (2026-05-15)
         id: publishToOpenVSX
         with:
           dry-run: ${{ steps.releaseMode.outputs.dryRun }}
@@ -42,7 +42,7 @@ jobs:
           skip-duplicate: true
       - name: Publish to Visual Studio Marketplace
         if: success() || failure()
-        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
+        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@c14cb59fdba637c16f851013d3307d8721e3eb23 # main (2026-05-15)
         with:
           dry-run: ${{ steps.releaseMode.outputs.dryRun }}
           extension-file: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
@@ -51,7 +51,7 @@ jobs:
           registry-url: https://marketplace.visualstudio.com
           skip-duplicate: true
       - name: Github Release
-        uses: SocketDev/socket-registry/.github/actions/create-gh-release@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
+        uses: SocketDev/socket-registry/.github/actions/create-gh-release@c14cb59fdba637c16f851013d3307d8721e3eb23 # main (2026-05-15)
         if: ${{ ! steps.releaseMode.outputs.dryRun }}
         with:
           body: |
