@@ -38,8 +38,8 @@ jobs:
           dry-run: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           pre-release: false
-          skip-duplicate: true
           registry-url: https://open-vsx.org/api
+          skip-duplicate: true
       - name: Publish to Visual Studio Marketplace
         if: success() || failure()
         uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
