@@ -32,28 +32,29 @@ jobs:
       - run: npm ci
       - name: Publish to Open VSX Registry
         if: success() || failure()
-        uses: HaaLeo/publish-vscode-extension@f4ece70f329f66686bd71c54b1671353fe320e49 # v1
+        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
         id: publishToOpenVSX
         with:
-          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
+          dry-run: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease: false
-          skipDuplicate: true
+          pre-release: false
+          skip-duplicate: true
+          registry-url: https://open-vsx.org/api
       - name: Publish to Visual Studio Marketplace
         if: success() || failure()
-        uses: HaaLeo/publish-vscode-extension@f4ece70f329f66686bd71c54b1671353fe320e49 # v1
+        uses: SocketDev/socket-registry/.github/actions/publish-vscode-extension@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
         with:
-          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
-          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+          dry-run: ${{ steps.releaseMode.outputs.dryRun }}
+          extension-file: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: false
-          registryUrl: https://marketplace.visualstudio.com
-          skipDuplicate: true
+          pre-release: false
+          registry-url: https://marketplace.visualstudio.com
+          skip-duplicate: true
       - name: Github Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: SocketDev/socket-registry/.github/actions/create-gh-release@4e9a0575c474ea9bc5587d3554608a155307111c # main (2026-05-15)
         if: ${{ ! steps.releaseMode.outputs.dryRun }}
         with:
           body: |
             This release is also available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=SocketSecurity.vscode-socket-security) and [OpenVSX Registry](https://open-vsx.org/extension/SocketSecurity/vscode-socket-security).
-          files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
-          prerelease: ${{ steps.releaseMode.outputs.preRelease }}
+          files: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
+          pre-release: ${{ steps.releaseMode.outputs.preRelease }}
