@@ -31,7 +31,7 @@
   "engines": {
     "vscode": "^1.63.0"
   },
-  "packageManager": "pnpm@11.0.8",
+  "packageManager": "pnpm@11.1.2",
   "icon": "assets/socket-icon-brand-256.png",
   "activationEvents": [
     "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
