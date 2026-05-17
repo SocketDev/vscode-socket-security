@@ -22,8 +22,8 @@ import { existsSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib/errors'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
 
 import {
   containsAiAttribution,
@@ -318,6 +318,15 @@ const scanFilesInRange = (range: string): number => {
       !file.startsWith('.claude/hooks/') &&
       !file.startsWith('.git-hooks/') &&
       !file.startsWith('scripts/') &&
+      // template/ holds the canonical sources that cascade to
+      // .claude/hooks/, .git-hooks/, and scripts/ in downstream
+      // fleet repos. The same exemption that applies at the
+      // destination has to apply at the source; otherwise wheelhouse
+      // template edits get flagged for code that's intentionally raw
+      // where it actually runs.
+      !file.startsWith('template/.claude/hooks/') &&
+      !file.startsWith('template/.git-hooks/') &&
+      !file.startsWith('template/scripts/') &&
       !file.includes('/external/') &&
       !file.includes('/vendor/') &&
       !file.includes('/upstream/') &&
@@ -333,7 +342,7 @@ const scanFilesInRange = (range: string): number => {
           }
         }
         logger.info(
-          'Use `getDefaultLogger()` from `@socketsecurity/lib/logger`. ' +
+          'Use `getDefaultLogger()` from `@socketsecurity/lib-stable/logger`. ' +
             'For documentation lines that need the literal call, append ' +
             `the marker \`${socketHookMarkerFor(file, 'logger')}\`.`,
         )
@@ -343,10 +352,16 @@ const scanFilesInRange = (range: string): number => {
 
     // Cross-repo path references — both relative (`../<fleet-repo>/…`)
     // and absolute (`…/projects/<fleet-repo>/…`) forms.
+    //
+    // Markdown is exempt: docs legitimately show cross-repo command
+    // examples (e.g. `node scripts/foo.mts --target ../socket-lib`)
+    // and re-emitting them with `@socketsecurity/lib-stable/…` would break
+    // the example's runnability. The codepath rule still applies to
+    // actual source files.
     if (
       !file.startsWith('.git-hooks/') &&
       !file.startsWith('.claude/hooks/') &&
-      !file.endsWith('CLAUDE.md') &&
+      !file.endsWith('.md') &&
       !file.includes('/external/') &&
       !file.includes('/vendor/') &&
       !file.includes('/upstream/') &&
@@ -361,7 +376,7 @@ const scanFilesInRange = (range: string): number => {
         }
         logger.info(
           'Cross-repo paths are forbidden — import via the published npm ' +
-            'package (`@socketsecurity/lib/<subpath>`) instead. For doc ' +
+            'package (`@socketsecurity/lib-stable/<subpath>`) instead. For doc ' +
             `lines, append \`${socketHookMarkerFor(file, 'cross-repo')}\`.`,
         )
         errors++

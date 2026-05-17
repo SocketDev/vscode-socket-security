@@ -1,6 +1,6 @@
 /**
  * @fileoverview Per CLAUDE.md "HTTP — never `fetch()`. Use httpJson /
- * httpText / httpRequest from @socketsecurity/lib/http-request."
+ * httpText / httpRequest from @socketsecurity/lib-stable/http-request."
  *
  * Reports any `fetch(...)` call (global fetch). Does NOT auto-fix
  * because the right replacement (`httpJson` vs `httpText` vs
@@ -14,25 +14,28 @@
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
+
+import type { AstNode, RuleContext } from '../lib/rule-types.mts'
+
 const rule = {
   meta: {
     type: 'problem',
     docs: {
       description:
-        'Use httpJson / httpText / httpRequest from @socketsecurity/lib/http-request instead of global fetch().',
+        'Use httpJson / httpText / httpRequest from @socketsecurity/lib-stable/http-request instead of global fetch().',
       category: 'Best Practices',
       recommended: true,
     },
     messages: {
       banned:
-        'global fetch() — use httpJson / httpText / httpRequest from @socketsecurity/lib/http-request. The right replacement depends on what you do with the response; the lib helpers ship consistent error shapes (HttpError) and JSON/text decoding.',
+        'global fetch() — use httpJson / httpText / httpRequest from @socketsecurity/lib-stable/http-request. The right replacement depends on what you do with the response; the lib helpers ship consistent error shapes (HttpError) and JSON/text decoding.',
     },
     schema: [],
   },
 
-  create(context) {
+  create(context: RuleContext) {
     return {
-      CallExpression(node) {
+      CallExpression(node: AstNode) {
         const callee = node.callee
         // Only flag direct `fetch(...)` calls (Identifier callee).
         if (callee.type !== 'Identifier' || callee.name !== 'fetch') {
@@ -44,7 +47,7 @@ const rule = {
         const scope = context.getScope ? context.getScope() : undefined
         if (scope) {
           const variable = scope.references.find(
-            ref => ref.identifier === callee,
+            (ref: AstNode) => ref.identifier === callee,
           )?.resolved
           if (variable && variable.scope.type !== 'global') {
             return

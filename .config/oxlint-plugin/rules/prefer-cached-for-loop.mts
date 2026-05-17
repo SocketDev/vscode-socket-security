@@ -20,7 +20,7 @@
  * Canonical shape emitted by the autofix:
  *
  *   for (let i = 0, { length } = arr; i < length; i += 1) {
- *     const item = arr[i]
+ *     const item = arr[i]!
  *     <body>
  *   }
  *
@@ -32,6 +32,11 @@
  *     so the test `i < length` doesn't re-read `arr.length` per
  *     iteration. Equivalent to `const len = arr.length` but pairs
  *     with `let i = 0` in a single `let` head.
+ *   - `arr[i]!` non-null assertion — under `noUncheckedIndexedAccess`
+ *     the lookup type is `T | undefined`, and the bound `i` is
+ *     provably in `[0, length)`. The assertion suppresses TS18048
+ *     at every read of `item` downstream. No-op for tsconfigs
+ *     without the strict flag.
  *
  * Autofix scope (deterministic only):
  *
@@ -81,20 +86,33 @@
  *     `for` loop changes that to sequential awaits, which IS what
  *     the user wants here but only if they say so — flag instead).
  *   - `for...of` over an iterator that isn't a bare Identifier
- *     (`for (const x of getThings())`) — we'd need to hoist the
- *     iterable to a `const` first; skip and flag.
+ *     (`for (const x of getThings())`, `for (const x of obj.list)`)
+ *     — we'd need to hoist the iterable to a `const` first; skip
+ *     SILENTLY. The rewrite is doable in many cases but the human
+ *     review is cleaner, and the rule's user experience is bad if
+ *     it reports an unfixable warning for every member-access loop.
+ *   - `for...of` whose loop variable is destructured
+ *     (`for (const [k, v] of m)`, `for (const { x } of arr)`)
+ *     — the typical source is a Map / Set / `.entries()` iteration
+ *     where there's no equivalent cached-for-loop shape (Maps aren't
+ *     integer-indexable). Skip SILENTLY.
  *   - `for...of` whose body uses `continue`/`break` labels matching
  *     `i` or `length` (extremely rare; skip to be safe).
  *   - `for...await...of` — semantically distinct, do not touch.
- *   - `for...of` over non-array iterables (Map, Set, generators)
- *     — we can't tell statically, but the rule only fires when the
- *     iterable looks like an array-typed identifier. To stay
- *     deterministic we accept some false negatives and only autofix
- *     the bare-Identifier-array shape; the reporter still flags
- *     other shapes so the human can convert manually.
+ *
+ * The earlier revision of this rule reported `preferCachedForNoFix`
+ * for the two skip-silently cases above. That surfaced as a lint
+ * error per location with no autofix path — the user had no way to
+ * resolve the finding short of hand-rewriting (often impossible:
+ * Maps don't have an indexed form). Now the rule only emits findings
+ * when an autofix is available; the cases above are skipped without
+ * a report at all.
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
+
+import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
+
 const rule = {
   meta: {
     type: 'suggestion',
@@ -114,13 +132,13 @@ const rule = {
     schema: [],
   },
 
-  create(context) {
+  create(context: RuleContext) {
     const sourceCode = context.getSourceCode
       ? context.getSourceCode()
       : context.sourceCode
 
     return {
-      CallExpression(node) {
+      CallExpression(node: AstNode) {
         // Match `<iter>.forEach(cb)` patterns.
         const callee = node.callee
         if (callee.type !== 'MemberExpression') {
@@ -270,20 +288,26 @@ const rule = {
           node,
           messageId: 'preferCachedFor',
           data: { iter: iterText, shape: '.forEach' },
-          fix(fixer) {
+          fix(fixer: RuleFixer) {
             const bodyInner = sourceCode.text.slice(
               cb.body.range[0] + 1,
               cb.body.range[1] - 1,
             )
             const indent = leadingIndent(sourceCode, parent)
             const innerIndent = `${indent}  `
-            const replacement = `for (let ${indexName} = 0, { length } = ${iterText}; ${indexName} < length; ${indexName} += 1) {\n${innerIndent}${itemKind} ${itemName} = ${iterText}[${indexName}]${bodyInner}\n${indent}}`
+            // `!` non-null assertion on the indexed access — under
+            // `noUncheckedIndexedAccess` the lookup returns `T |
+            // undefined`, and every read of `${itemName}` downstream
+            // would trip TS18048. The assertion is a no-op for
+            // tsconfigs that don't enable the strict flag, so it's
+            // safe to emit unconditionally.
+            const replacement = `for (let ${indexName} = 0, { length } = ${iterText}; ${indexName} < length; ${indexName} += 1) {\n${innerIndent}${itemKind} ${itemName} = ${iterText}[${indexName}]!${bodyInner}\n${indent}}`
             return fixer.replaceText(parent, replacement)
           },
         })
       },
 
-      ForOfStatement(node) {
+      ForOfStatement(node: AstNode) {
         // for await ... — leave alone.
         if (node.await) {
           return
@@ -298,29 +322,18 @@ const rule = {
         }
         const declarator = left.declarations[0]
         if (!declarator.id || declarator.id.type !== 'Identifier') {
-          context.report({
-            node,
-            messageId: 'preferCachedForNoFix',
-            data: {
-              shape: 'for...of',
-              reason: 'loop variable is destructured',
-            },
-          })
+          // Destructured loop var — typically Map/Set/.entries()
+          // iteration where there's no cached-for-loop equivalent.
+          // Skip silently rather than emit an unfixable warning.
           return
         }
         // Iterable must be a bare Identifier — otherwise we don't
-        // know if it's a (cheap) array indexing target.
+        // know if it's a (cheap) array indexing target. The rewrite
+        // for a MemberExpression / CallExpression iterable IS doable
+        // (hoist to a local), but the human review is cleaner.
+        // Skip silently rather than nag.
         const iter = node.right
         if (iter.type !== 'Identifier') {
-          context.report({
-            node,
-            messageId: 'preferCachedForNoFix',
-            data: {
-              shape: 'for...of',
-              reason:
-                'iterable is not a bare identifier (could be Map/Set/Generator/expression)',
-            },
-          })
           return
         }
         if (node.body.type !== 'BlockStatement') {
@@ -348,14 +361,16 @@ const rule = {
           node,
           messageId: 'preferCachedFor',
           data: { iter: iterText, shape: 'for...of' },
-          fix(fixer) {
+          fix(fixer: RuleFixer) {
             const bodyInner = sourceCode.text.slice(
               node.body.range[0] + 1,
               node.body.range[1] - 1,
             )
             const indent = leadingIndent(sourceCode, node)
             const innerIndent = `${indent}  `
-            const replacement = `for (let ${counterName} = 0, { length } = ${iterText}; ${counterName} < length; ${counterName} += 1) {\n${innerIndent}${itemKind} ${itemName} = ${iterText}[${counterName}]${bodyInner}\n${indent}}`
+            // `!` non-null assertion on the indexed access — see the
+            // sibling .forEach branch for the rationale.
+            const replacement = `for (let ${counterName} = 0, { length } = ${iterText}; ${counterName} < length; ${counterName} += 1) {\n${innerIndent}${itemKind} ${itemName} = ${iterText}[${counterName}]!${bodyInner}\n${indent}}`
             return fixer.replaceText(node, replacement)
           },
         })
@@ -369,7 +384,7 @@ const rule = {
  * variable. Defaults to `i`, falls back to `i2`, `i3`, ... if the
  * item is itself named `i` (rare but defensive).
  */
-function pickCounterName(itemName) {
+function pickCounterName(itemName: string): string {
   if (itemName !== 'i') {
     return 'i'
   }
@@ -387,7 +402,11 @@ function pickCounterName(itemName) {
  * doesn't expose a uniform visitor for body subtrees here; the
  * regex catches every reassignment shape that compiles today.
  */
-function reassignsInBody(sourceCode, bodyNode, name) {
+function reassignsInBody(
+  sourceCode: AstNode,
+  bodyNode: AstNode,
+  name: string,
+): boolean {
   if (!bodyNode) {
     return false
   }
@@ -420,14 +439,14 @@ function reassignsInBody(sourceCode, bodyNode, name) {
  * the rewritten block can re-indent its contents consistently with
  * the surrounding code.
  */
-function leadingIndent(sourceCode, node) {
+function leadingIndent(sourceCode: AstNode, node: AstNode): string {
   const text = sourceCode.text
   const start = node.range[0]
   const lineStart = text.lastIndexOf('\n', start - 1) + 1
   const indent = text.slice(lineStart, start)
   // Strip non-whitespace (in case the line has content before this
   // statement). Indent is the leading-whitespace prefix only.
-  return /^\s*/.exec(indent)[0]
+  return /^\s*/.exec(indent)?.[0] ?? ''
 }
 
 export default rule

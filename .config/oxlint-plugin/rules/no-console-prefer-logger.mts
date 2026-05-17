@@ -1,13 +1,13 @@
 /**
  * @fileoverview Ban `console.log` / `console.error` / `console.warn`
  * / `console.info` / `console.debug` / `console.trace`. The fleet uses
- * `getDefaultLogger()` from `@socketsecurity/lib/logger` — those
+ * `getDefaultLogger()` from `@socketsecurity/lib-stable/logger` — those
  * methods emit theme-aware coloring + canonical symbols.
  *
  * Autofix: rewrites `console.<method>(...)` → `logger.<loggerMethod>(...)`
  * AND inserts the missing pieces in one go:
  *
- *   1. `import { getDefaultLogger } from '@socketsecurity/lib/logger'`
+ *   1. `import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'`
  *      — appended after the last existing top-level import (or at the
  *      top of the file if there are none).
  *   2. `const logger = getDefaultLogger()` — appended after the import
@@ -20,6 +20,8 @@
 
 import { appendImportFixes, summarizeImportTarget } from './_inject-import.mts'
 
+import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
+
 const CONSOLE_TO_LOGGER = {
   debug: 'log',
   error: 'fail',
@@ -30,7 +32,7 @@ const CONSOLE_TO_LOGGER = {
 }
 
 const LOGGER_IMPORT_LINE =
-  "import { getDefaultLogger } from '@socketsecurity/lib/logger'"
+  "import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'"
 const LOGGER_HOIST_LINE = 'const logger = getDefaultLogger()'
 
 /** @type {import('eslint').Rule.RuleModule} */
@@ -39,24 +41,24 @@ const rule = {
     type: 'problem',
     docs: {
       description:
-        'Ban console.* calls; use logger from @socketsecurity/lib/logger.',
+        'Ban console.* calls; use logger from @socketsecurity/lib-stable/logger.',
       category: 'Best Practices',
       recommended: true,
     },
     fixable: 'code',
     messages: {
       banned:
-        'console.{{method}}() — use logger.{{loggerMethod}}() from @socketsecurity/lib/logger.',
+        'console.{{method}}() — use logger.{{loggerMethod}}() from @socketsecurity/lib-stable/logger.',
     },
     schema: [],
   },
 
-  create(context) {
+  create(context: RuleContext) {
     const sourceCode = context.getSourceCode
       ? context.getSourceCode()
       : context.sourceCode
 
-    let summary
+    let summary: ReturnType<typeof summarizeImportTarget> | undefined
 
     function ensureSummary() {
       if (summary) {
@@ -64,7 +66,7 @@ const rule = {
       }
       summary = summarizeImportTarget(
         sourceCode.ast,
-        '@socketsecurity/lib/logger',
+        '@socketsecurity/lib-stable/logger',
         'getDefaultLogger',
         'logger',
       )
@@ -72,7 +74,7 @@ const rule = {
     }
 
     return {
-      MemberExpression(node) {
+      MemberExpression(node: AstNode) {
         if (
           node.object.type !== 'Identifier' ||
           node.object.name !== 'console' ||
@@ -81,7 +83,9 @@ const rule = {
           return
         }
         const method = node.property.name
-        const loggerMethod = CONSOLE_TO_LOGGER[method]
+        const loggerMethod = (CONSOLE_TO_LOGGER as Record<string, string>)[
+          method
+        ]
         if (!loggerMethod) {
           return
         }
@@ -103,7 +107,7 @@ const rule = {
           node,
           messageId: 'banned',
           data: { method, loggerMethod },
-          fix(fixer) {
+          fix(fixer: RuleFixer) {
             return [
               fixer.replaceText(node, `logger.${loggerMethod}`),
               ...appendImportFixes(

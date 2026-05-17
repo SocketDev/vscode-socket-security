@@ -11,7 +11,7 @@
 import { basename } from 'node:path'
 import process from 'node:process'
 
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
 
 import {
   gitLines,
@@ -219,7 +219,7 @@ const main = (): number => {
 
   // Direct stream writes (process.stderr.write, process.stdout.write,
   // console.*) in source files. Source code uses getDefaultLogger()
-  // from @socketsecurity/lib/logger; the logger-guard PreToolUse hook
+  // from @socketsecurity/lib-stable/logger; the logger-guard PreToolUse hook
   // catches these at edit time, this gate catches them at commit time
   // for edits made outside Claude.
   logger.info('Checking for direct stream writes...')
@@ -235,6 +235,12 @@ const main = (): number => {
       file.startsWith('.claude/hooks/') ||
       file.startsWith('.git-hooks/') ||
       file.startsWith('scripts/') ||
+      // template/ is the canonical source for code that cascades to
+      // .claude/hooks/, .git-hooks/, and scripts/. Apply the same
+      // exemption at the source.
+      file.startsWith('template/.claude/hooks/') ||
+      file.startsWith('template/.git-hooks/') ||
+      file.startsWith('template/scripts/') ||
       file.includes('/external/') ||
       file.includes('/vendor/') ||
       file.includes('/upstream/')
@@ -258,7 +264,7 @@ const main = (): number => {
         }
       }
       logger.info(
-        'Use `getDefaultLogger()` from `@socketsecurity/lib/logger`. ' +
+        'Use `getDefaultLogger()` from `@socketsecurity/lib-stable/logger`. ' +
           'For documentation lines that need the literal call, append ' +
           `the marker \`${socketHookMarkerFor(file, 'logger')}\`.`,
       )
@@ -280,12 +286,13 @@ const main = (): number => {
       continue
     }
     // Don't scan the hook source itself (it lists fleet repo names by
-    // necessity), the canonical CLAUDE.md fleet block (which documents
-    // fleet repos), or vendored upstream sources.
+    // necessity), markdown docs (which legitimately show cross-repo
+    // command examples like `--target ../socket-lib`), or vendored
+    // upstream sources.
     if (
       file.startsWith('.git-hooks/') ||
       file.startsWith('.claude/hooks/') ||
-      file.endsWith('CLAUDE.md') ||
+      file.endsWith('.md') ||
       file.includes('/external/') ||
       file.includes('/vendor/') ||
       file.includes('/upstream/') ||
@@ -307,8 +314,8 @@ const main = (): number => {
       logger.info(
         'Cross-repo paths (`../<fleet-repo>/…` or absolute `…/projects/<fleet-repo>/…`) ' +
           'are forbidden — they assume sibling-clone layout and break in CI / fresh clones. ' +
-          'Import via the published npm package instead (`@socketsecurity/lib/<subpath>`, ' +
-          `\`@socketsecurity/registry/<subpath>\`). For documentation lines that need the ` +
+          'Import via the published npm package instead (`@socketsecurity/lib-stable/<subpath>`, ' +
+          `\`@socketsecurity/registry-stable/<subpath>\`). For documentation lines that need the ` +
           `literal path, append the marker \`${socketHookMarkerFor(file, 'cross-repo')}\`.`,
       )
       errors++
