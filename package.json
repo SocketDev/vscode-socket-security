@@ -31,7 +31,7 @@
   "engines": {
     "vscode": "^1.63.0"
   },
-  "packageManager": "pnpm@11.1.2",
+  "packageManager": "pnpm@11.0.8",
   "icon": "assets/socket-icon-brand-256.png",
   "activationEvents": [
     "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
@@ -111,7 +111,8 @@
     "test-compile": "tsc -p tsconfig.json",
     "update": "node scripts/update.mts",
     "vscode:prepublish": "pnpm run esbuild --minify",
-    "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs"
+    "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
+    "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts"
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
